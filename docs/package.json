@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "lys-docs-theme": "github:stubbedev/lys-docs-theme#4b54f6840d7c7e7cf17b9367619c3a33a91b92d6",
+    "vitepress": "^1.6.3"
+  },
+  "overrides": {
+    "vite": "^6.4.3"
+  }
+}

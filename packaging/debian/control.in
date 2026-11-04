@@ -1,0 +1,30 @@
+Source: lys-settings
+Section: utils
+Priority: optional
+Maintainer: @MAINTAINER@
+Build-Depends:
+ debhelper-compat (= 13),
+ desktop-file-utils
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/stubbedev/lys-settings
+Vcs-Git: https://github.com/stubbedev/lys-settings.git
+Vcs-Browser: https://github.com/stubbedev/lys-settings
+
+Package: lys-settings
+Architecture: amd64 arm64
+Depends:
+ ${misc:Depends},
+ hicolor-icon-theme
+Recommends:
+ libvulkan1,
+ mesa-vulkan-drivers,
+ lys-shell (>= 0.4.0~) | lys-wm
+Breaks:
+ lys-shell (<< 0.4.0~)
+Replaces:
+ lys-shell (<< 0.4.0~)
+Description: settings app for the lys desktop
+ lys-settings configures lys-shell and lys-wm: its pages edit lys-shell's
+ runtime overrides, and lys-wm's config file, which lys-wm checks before it is
+ written and reloads after.

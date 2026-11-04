@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+
+override_dh_dwz:
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_auto_install:
+	install -d debian/lys-settings/usr/bin
+	install -m 0755 lys-settings debian/lys-settings/usr/bin/
+
+	install -D -m 0644 dev.stubbe.lys.settings.desktop debian/lys-settings/usr/share/applications/dev.stubbe.lys.settings.desktop
+	desktop-file-validate debian/lys-settings/usr/share/applications/dev.stubbe.lys.settings.desktop
+	install -D -m 0644 lys-settings.svg debian/lys-settings/usr/share/icons/hicolor/scalable/apps/lys-settings.svg
+
+	install -d debian/lys-settings/usr/share/lys-settings/icons/hicolor/scalable/actions
+	install -m 0644 icons/hicolor/scalable/actions/*.svg debian/lys-settings/usr/share/lys-settings/icons/hicolor/scalable/actions/

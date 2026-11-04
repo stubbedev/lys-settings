@@ -1,0 +1,18 @@
+name: docs
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: docs
+  cancel-in-progress: true
+jobs:
+  pages:
+    uses: stubbedev/lys-docs-theme/.github/workflows/pages.yml@a36159a7e9f618885d9760fe8587b3b768ed29b0 # v0.1.1

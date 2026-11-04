@@ -1,0 +1,46 @@
+%global debug_package %{nil}
+%global _build_id_links none
+
+Name:           lys-settings
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Settings app for the lys desktop
+License:        MIT
+URL:            https://github.com/stubbedev/lys-settings
+Source0:        https://github.com/stubbedev/lys-settings/releases/download/v%{version}/lys-settings-%{version}-%{_arch}-linux.tar.gz
+ExclusiveArch:  x86_64 aarch64
+
+BuildRequires:  desktop-file-utils
+Requires:       hicolor-icon-theme
+Recommends:     vulkan-loader
+Recommends:     mesa-vulkan-drivers
+Recommends:     (lys-shell >= 0.4.0 or lys-wm)
+Conflicts:      lys-shell < 0.4.0
+
+%description
+lys-settings configures lys-shell and lys-wm: its pages edit lys-shell's runtime overrides, and lys-wm's config file, which lys-wm checks before it is written and reloads after.
+
+%prep
+%setup -q -n lys-settings-%{version}-%{_arch}-linux
+
+%build
+
+%install
+install -d %{buildroot}%{_bindir}
+install -m 0755 lys-settings %{buildroot}%{_bindir}/
+install -D -m 0644 dev.stubbe.lys.settings.desktop %{buildroot}%{_datadir}/applications/dev.stubbe.lys.settings.desktop
+desktop-file-validate %{buildroot}%{_datadir}/applications/dev.stubbe.lys.settings.desktop
+install -D -m 0644 lys-settings.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/lys-settings.svg
+install -d %{buildroot}%{_datadir}/lys-settings/icons/hicolor/scalable/actions
+install -m 0644 icons/hicolor/scalable/actions/*.svg %{buildroot}%{_datadir}/lys-settings/icons/hicolor/scalable/actions/
+
+%files
+%license LICENSE
+%{_bindir}/lys-settings
+%{_datadir}/applications/dev.stubbe.lys.settings.desktop
+%{_datadir}/icons/hicolor/scalable/apps/lys-settings.svg
+%{_datadir}/lys-settings
+
+%changelog
+* @DATE@ @MAINTAINER@ - @VERSION@-1
+- Packaged upstream binary release
