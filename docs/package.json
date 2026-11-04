@@ -7,7 +7,7 @@
     "preview": "vitepress preview"
   },
   "devDependencies": {
-    "lys-docs-theme": "github:stubbedev/lys-docs-theme#4b54f6840d7c7e7cf17b9367619c3a33a91b92d6",
+    "lys-docs-theme": "github:stubbedev/lys-docs-theme#semver:^0.1.2",
     "vitepress": "^1.6.3"
   },
   "overrides": {
