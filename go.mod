@@ -3,9 +3,9 @@ module github.com/stubbedev/lys-settings
 go 1.27.3
 
 require (
-	github.com/stubbedev/lys-lib v0.3.4
-	github.com/stubbedev/lys-shell v0.3.6
-	github.com/stubbedev/lys-ui v0.2.4
+	github.com/stubbedev/lys-lib v0.3.5
+	github.com/stubbedev/lys-shell v0.3.7
+	github.com/stubbedev/lys-ui v0.2.7
 	go.yaml.in/yaml/v3 v3.0.6
 )
 
@@ -19,7 +19,7 @@ require (
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/stubbedev/lys-secrets v0.3.6 // indirect
+	github.com/stubbedev/lys-secrets v0.3.7 // indirect
 	github.com/stubbedev/memory-go v0.5.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
