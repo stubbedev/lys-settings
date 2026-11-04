@@ -25,7 +25,7 @@ To install it alone, as on lys-wm without the shell:
 ## Debian and Fedora
 
 The [releases page](https://github.com/stubbedev/lys-settings/releases) has a
-`.deb` and an `.rpm`. lys-shell's packages from 0.4.0 recommend it, and it
+`.deb` and an `.rpm`. lys-shell's packages from 0.3.5 recommend it, and it
 replaces the copy lys-shell shipped before that.
 
 ## Archive

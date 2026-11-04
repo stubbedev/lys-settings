@@ -14,8 +14,8 @@ BuildRequires:  desktop-file-utils
 Requires:       hicolor-icon-theme
 Recommends:     vulkan-loader
 Recommends:     mesa-vulkan-drivers
-Recommends:     (lys-shell >= 0.4.0 or lys-wm)
-Conflicts:      lys-shell < 0.4.0
+Recommends:     (lys-shell >= 0.3.5 or lys-wm)
+Conflicts:      lys-shell < 0.3.5
 
 %description
 lys-settings configures lys-shell and lys-wm: its pages edit lys-shell's runtime overrides, and lys-wm's config file, which lys-wm checks before it is written and reloads after.
