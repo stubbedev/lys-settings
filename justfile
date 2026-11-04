@@ -43,8 +43,8 @@ build:
     go build -o /dev/null ./...
 
 # Build the release binary into dist/, as the archive and the packages ship it.
-dist:
-    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -I {{fhs_interpreter}} -X main.version=$(git describe --tags --always | sed 's/^v//')" -o dist/ ./cmd/lys-settings
+dist version="dev":
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -I {{fhs_interpreter}} -X main.version={{version}}" -o dist/ ./cmd/lys-settings
 
 # Run the settings app.
 run *args:

@@ -29,8 +29,10 @@ jobs:
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build the binaries
-        run: nix develop -c just dist
+      - name: Build the binary
+        env:
+          VERSION: ${{ inputs.version }}
+        run: nix develop -c just dist "${VERSION}"
       - name: Build the archive
         env:
           VERSION: ${{ inputs.version }}
@@ -40,7 +42,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential debhelper dpkg-dev
+          sudo apt-get install -y --no-install-recommends build-essential debhelper dpkg-dev desktop-file-utils
           ./packaging/build-packages.sh "lys-settings-${VERSION}-${{ matrix.arch }}-linux.tar.gz" "${VERSION}" deb
       - name: Install and run the Debian package
         run: sudo ./packaging/smoke-test.sh debbuild/DEBS/${{ matrix.deb }}/*.deb
@@ -76,7 +78,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          dnf -y --setopt=install_weak_deps=False install rpm-build systemd-rpm-macros
+          dnf -y --setopt=install_weak_deps=False install rpm-build desktop-file-utils
           ./packaging/build-packages.sh "lys-settings-${VERSION}-${{ matrix.arch }}-linux.tar.gz" "${VERSION}" rpm
       - name: Install and run the RPM package
         run: ./packaging/smoke-test.sh rpmbuild/RPMS/${{ matrix.arch }}/*.rpm
