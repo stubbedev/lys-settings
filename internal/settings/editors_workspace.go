@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // workspaceStyle is one workspace_style_map row: the workspace key and
@@ -42,7 +42,7 @@ func (w workspaceStyleItem) itemValue() any {
 // names (sorted, an empty one dropped).
 func workspaceStyleMap(numeric bool) rowOpt {
 	return listRow(func(config.FieldMeta) listSpec {
-		t := i18n.Settings()
+		t := locale.T()
 		return listSpec{
 			addKey: "settings-map-add", rowClass: "string-map-row", blank: workspaceStyle{},
 			classes: []string{"workspace-style-editor"}, listCls: "string-map",

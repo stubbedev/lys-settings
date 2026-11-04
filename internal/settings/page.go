@@ -1,11 +1,11 @@
 package settings
 
 import (
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // pageSpec is LeafEntry with its PageSpec: the sidebar entry and the
@@ -18,6 +18,8 @@ type pageSpec struct {
 	// footer, when set, builds what follows the sections (the greeter's
 	// apply button).
 	footer func(k *kit) widget.Widget
+	// wm says the rows are lys-wm's, not lys-shell's.
+	wm bool
 }
 
 // sectionSpec is SectionSpec: a titled group of rows.
@@ -81,12 +83,13 @@ func withEditor(e editorFunc) rowOpt { return func(r *rowSpec) { r.editor = e } 
 // scroll, refreshing its rows when the config changes.
 type settingsPage struct {
 	*widget.Scroll
-	rows []*settingRow
+	rows   []*settingRow
+	status *wmStatus
 }
 
 // buildPage lays out a page (pages/layout.rs).
 func buildPage(k *kit, spec pageSpec) *settingsPage {
-	t := i18n.Settings()
+	t := locale.T()
 	th := widget.Current()
 	content := widget.NewBox(widget.Column, 3*th.Spacing, 3*th.Padding)
 	content.AddClass("settings-page")
@@ -97,6 +100,19 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 	content.Append(header, false)
 	content.Append(widget.NewSeparator(widget.Horizontal), false)
 	p := &settingsPage{}
+	var be backend = k.store
+	if spec.wm {
+		w, err := k.wmBackend()
+		if err != nil {
+			content.Append(k.label(err.Error(), "error", css.Caption), false)
+			p.Scroll = widget.NewScroll(content)
+			p.VerticalOnly, p.ShowBars, p.FillY = true, true, true
+			return p
+		}
+		be = w
+		p.status = newWMStatus(k, w)
+		content.Append(p.status, false)
+	}
 	for _, s := range spec.sections {
 		section := gapBox(widget.Column)
 		section.AddClass("settings-section")
@@ -107,7 +123,7 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		group.AddClass(css.Card, "settings-group")
 		group.Append(rows, false)
 		for _, rs := range s.rows {
-			row := newSettingRow(k, rs, fieldControl(k, rs))
+			row := newSettingRow(k, be, rs, fieldControl(k, be, rs))
 			rows.Append(row)
 			p.rows = append(p.rows, row)
 		}
@@ -126,6 +142,9 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 func (p *settingsPage) refresh() {
 	for _, r := range p.rows {
 		r.refresh()
+	}
+	if p.status != nil {
+		p.status.refresh()
 	}
 }
 

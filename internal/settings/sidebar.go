@@ -4,7 +4,7 @@ import (
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // newSidebar is Sidebar on lys-ui's sidebar beside content: the title,
@@ -12,7 +12,7 @@ import (
 // reset-all button. Picking a page reports its id to onNavigate; the
 // footer button runs onResetAll.
 func newSidebar(k *kit, sections []navSection, active string, content widget.Widget, onNavigate func(id string), onResetAll func()) *widget.Sidebar {
-	t := i18n.Settings()
+	t := locale.T()
 	s := widget.NewSidebar(k.face, content)
 	s.SetCollapse(widget.SidebarNone)
 	s.SetNarrowWidth(0)

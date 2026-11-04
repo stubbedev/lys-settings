@@ -4,9 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stubbedev/lys-ui/widget"
-
 	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-ui/widget"
 )
 
 func typeNumber(n *number, text string) {
@@ -18,7 +17,7 @@ func typeNumber(n *number, text string) {
 func TestPasswordPresetCards(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.bitwarden.generator-passwords"
-	c := fieldControl(k, field(path, passwordPresetList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, passwordPresetList)).(*cardList)
 	if len(c.cards) != 1 {
 		t.Fatalf("%d cards for the default preset", len(c.cards))
 	}
@@ -55,7 +54,7 @@ func TestPasswordPresetCards(t *testing.T) {
 func TestPasswordPresetCardsKeepTheLastCharset(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.bitwarden.generator-passwords"
-	c := fieldControl(k, field(path, passwordPresetList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, passwordPresetList)).(*cardList)
 	charsets := c.cards[0].controls[1].(*listEditor)
 	for len(charsets.items) > 0 {
 		charsets.remove(charsets.items[0])
@@ -69,7 +68,7 @@ func TestPasswordPresetCardsKeepTheLastCharset(t *testing.T) {
 func TestPassphrasePresetCards(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.bitwarden.generator-passphrases"
-	c := fieldControl(k, field(path, passphrasePresetList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, passphrasePresetList)).(*cardList)
 	typeNumber(c.cards[0].controls[0].(*number), "4")
 	sep := c.cards[0].controls[1].(*liveText)
 	sep.SetText("")

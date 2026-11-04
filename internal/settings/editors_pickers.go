@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/shell/apptheme"
+	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/internal/icons"
-	"github.com/stubbedev/lys-shell/styling"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The editors that open a picker (editors/font, editors/color).
@@ -169,7 +169,7 @@ func newSearchPicker(k *kit, names []string, spec pickerSpec, pick func(string))
 	root, contents := pickerFrame(spec.class)
 	p.root = root
 	if spec.searchEntry {
-		se := widget.NewSearchEntry(k.face, k.textPx(), i18n.Settings().Get(spec.placeholder))
+		se := widget.NewSearchEntry(k.face, k.textPx(), locale.T().Get(spec.placeholder))
 		// The stylesheet inks it, as k.entry's.
 		se.SetColor(0)
 		se.SetTextWidth(widget.GTKTextWidth)
@@ -280,7 +280,7 @@ func newFileEditor(k *kit, s slot) *fileEditor {
 	c := &fileEditor{Box: gapBox(widget.Row), entry: newText(k, s, false)}
 	c.entry.SetWidthChars(pathEntryChars, pathEntryChars)
 	c.entry.SetEllipsize(widget.EllipsizeMiddle)
-	c.entry.SetPlaceholder(i18n.Settings().Get("settings-file-path-placeholder"))
+	c.entry.SetPlaceholder(locale.T().Get("settings-file-path-placeholder"))
 	edited := c.entry.OnChanged
 	c.entry.OnChanged = func(path string) {
 		edited(path)
@@ -342,7 +342,7 @@ func iconPickerWidth() int { return iconGridExtent(iconPickerColumns) + 2*widget
 // tests; IconManager::list). A root that cannot be read is logged; the
 // others' icons are still offered.
 var iconNames = func() []string {
-	names, err := icons.List(widget.IconSearchPaths())
+	names, err := apptheme.IconNames()
 	if err != nil {
 		log.Printf("settings: icons: %v", err)
 	}
@@ -387,7 +387,7 @@ func (c *iconEditor) refresh() {
 	name := c.slot.text()
 	if name == "" {
 		c.icon.SetThemeName("ld-image-symbolic")
-		c.label.SetText(i18n.Settings().Get("settings-icon-none"))
+		c.label.SetText(locale.T().Get("settings-icon-none"))
 		return
 	}
 	c.icon.SetThemeName(name)
@@ -439,7 +439,7 @@ func newIconPicker(k *kit, names []string, current string, width int, pick func(
 		}
 	}
 	p.clear = k.button(k.icon("ld-x-circle-symbolic"), func() { p.pick("") }, "icon-picker-clear", css.Ghost, css.Icon)
-	p.clear.SetTooltip(i18n.Settings().Get("settings-icon-clear"))
+	p.clear.SetTooltip(locale.T().Get("settings-icon-clear"))
 	searchRow := gapBox(widget.Row)
 	searchRow.AppendAligned(p.search, true, widget.AlignCenter)
 	searchRow.AppendAligned(p.clear, false, widget.AlignCenter)
@@ -527,7 +527,7 @@ type themeSelector struct {
 }
 
 func newThemeSelector(k *kit) *themeSelector {
-	t := i18n.Settings()
+	t := locale.T()
 	c := &themeSelector{Box: widget.NewBox(widget.Row, 0, 0), k: k}
 	content := gapBox(widget.Row)
 	content.AppendAligned(k.icon("ld-palette-symbolic", "theme-preset-button-icon"), false, widget.AlignCenter)

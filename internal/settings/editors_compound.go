@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The editors built from several controls (editors/optional,
@@ -18,7 +18,7 @@ import (
 // enumLabels are the variants' labels: the Fluent key's text, or the
 // raw value where the key is missing (variant_label).
 func enumLabels(meta config.FieldMeta) []string {
-	t := i18n.Settings()
+	t := locale.T()
 	labels := make([]string, len(meta.Variants))
 	for i, v := range meta.Variants {
 		labels[i] = v
@@ -40,7 +40,7 @@ type optionalEnum struct {
 }
 
 func newOptionalEnum(k *kit, s slot, meta config.FieldMeta) *optionalEnum {
-	labels := append([]string{i18n.Settings().Get("settings-inherit")}, enumLabels(meta)...)
+	labels := append([]string{locale.T().Get("settings-inherit")}, enumLabels(meta)...)
 	c := &optionalEnum{Dropdown: widget.NewDropdown(k.face, k.textPx(), labels, 0), k: k, slot: s, variants: meta.Variants}
 	c.OnSelect = func(i int) {
 		switch {
@@ -79,7 +79,7 @@ func newOptionalNumber(k *kit, s slot, lo, hi, step, fallback float64, digits in
 	c := &optionalNumber{Box: gapBox(widget.Row), k: k, slot: s, whole: digits == 0}
 	c.on = widget.NewSwitch(false)
 	c.on.AddClass("inherit-switch")
-	c.on.SetTooltip(i18n.Settings().Get("settings-override"))
+	c.on.SetTooltip(locale.T().Get("settings-override"))
 	c.spin = widget.NewSpinButton(k.face, k.textPx(), 0, lo, hi, step, digits)
 	c.spin.SetValue(fallback)
 	c.AppendAligned(c.on, false, widget.AlignCenter)
@@ -164,7 +164,7 @@ type sizeEditor struct {
 }
 
 func newSizeEditor(k *kit, s slot, baseRem float64) *sizeEditor {
-	t := i18n.Settings()
+	t := locale.T()
 	c := &sizeEditor{Box: gapBox(widget.Row), k: k, slot: s, basePx: baseRem * remBasePx}
 	c.mode = widget.NewDropdown(k.face, k.textPx(), []string{t.Get("settings-size-scale"), t.Get("settings-size-px")}, sizeScale)
 	c.spin = widget.NewSpinButton(k.face, k.textPx(), 0, 0, 10000, 0.05, 2)
@@ -274,7 +274,7 @@ func newOptionalSize(k *kit, s slot, baseRem float64) *optionalSize {
 	c := &optionalSize{Box: gapBox(widget.Row), slot: s}
 	c.on = widget.NewSwitch(false)
 	c.on.AddClass("inherit-switch")
-	c.on.SetTooltip(i18n.Settings().Get("settings-override"))
+	c.on.SetTooltip(locale.T().Get("settings-override"))
 	c.size = newSizeEditor(k, s, baseRem)
 	c.size.spin.SetValue(1)
 	c.AppendAligned(c.on, false, widget.AlignCenter)

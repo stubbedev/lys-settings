@@ -4,13 +4,13 @@ import (
 	"log"
 
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-ui/widget"
-	"github.com/stubbedev/lys-ui/widget/css"
-
-	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-shell/shell/widgets"
 	"github.com/stubbedev/lys-shell/styling"
+	"github.com/stubbedev/lys-ui/widget"
+	"github.com/stubbedev/lys-ui/widget/css"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // hiddenPriority puts the reset button's hidden opacity above every
@@ -37,6 +37,10 @@ type kit struct {
 	invoke func(func())
 	// pickers opens popovers and dialogs; nil without a window.
 	pickers pickers
+	// wm is lys-wm's config once a page of it was opened; onWMChange
+	// refreshes the window when a change to it settled.
+	wm         *wmBackend
+	onWMChange func()
 	// background runs blocking work off the loop (a D-Bus query);
 	// nil runs it in place, the tests' synchronous loop.
 	background func(func())
@@ -91,7 +95,7 @@ func (k *kit) entry() *widget.Entry {
 // placeholder key's text that hands every edit to onChange.
 func (k *kit) searchField(placeholder string, onChange func(query string)) *widget.Entry {
 	e := k.entry()
-	e.SetPlaceholder(i18n.Settings().Get(placeholder))
+	e.SetPlaceholder(locale.T().Get(placeholder))
 	e.OnChanged = onChange
 	return e
 }
@@ -152,6 +156,7 @@ type control interface {
 type settingRow struct {
 	*widget.Box
 	kit   *kit
+	be    backend
 	path  string
 	ctl   control
 	badge *widget.Badge
@@ -162,14 +167,14 @@ type settingRow struct {
 
 // newSettingRow lays a row out (row/mod.rs view): a full-width control
 // stacks under the text, with the reset button beside the label.
-func newSettingRow(k *kit, spec rowSpec, ctl control) *settingRow {
-	t := i18n.Settings()
+func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
+	t := locale.T()
 	axis := widget.Row
 	if spec.fullWidth {
 		axis = widget.Column
 	}
 	th := widget.Current()
-	r := &settingRow{kit: k, path: spec.path, ctl: ctl, action: spec.action, Box: gapBox(axis)}
+	r := &settingRow{kit: k, be: be, path: spec.path, ctl: ctl, action: spec.action, Box: gapBox(axis)}
 	r.SetElement("item")
 	r.AddClass(css.Small, "setting-row")
 
@@ -198,7 +203,7 @@ func newSettingRow(k *kit, spec rowSpec, ctl control) *settingRow {
 		info.Append(dl, false)
 	}
 
-	r.reset = k.button(k.icon("ld-rotate-ccw-symbolic"), func() { k.store.reset(spec.path) }, "setting-reset", css.Ghost, css.Icon)
+	r.reset = k.button(k.icon("ld-rotate-ccw-symbolic"), func() { be.reset(spec.path) }, "setting-reset", css.Ghost, css.Icon)
 	slot := widget.NewBox(widget.Row, 0, 0)
 	slot.AddClass("setting-control")
 	slot.AppendAligned(ctl, spec.fullWidth, widget.AlignCenter)
@@ -230,7 +235,7 @@ func (r *settingRow) refresh() {
 func (r *settingRow) refreshSource() {
 	src := sourceInfo{}
 	if !r.action {
-		src = sourceOf(r.kit.store, r.path)
+		src = r.be.source(r.path)
 	}
 	r.badge.SetVisible(src.badge)
 	r.badge.SetText(src.label)

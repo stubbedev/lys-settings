@@ -4,7 +4,10 @@ import (
 	"strings"
 
 	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-shell/settingspage"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
+	"github.com/stubbedev/lys-settings/internal/wmconfig"
 )
 
 // initialPage is the page the window opens on (INITIAL_PAGE_ID), or
@@ -30,6 +33,9 @@ func layout(cfg *config.Config) []navSection {
 		{key: "settings-nav-lock", pages: []pageSpec{lockPage(cfg)}},
 		{key: "settings-nav-greeter", pages: []pageSpec{greeterPage(cfg)}},
 		{key: "settings-nav-modules", pages: modulePages(cfg)},
+	}
+	if wmconfig.Installed() {
+		sections = append(sections, wmSections()...)
 	}
 	out := sections[:0]
 	for _, s := range sections {
@@ -118,22 +124,21 @@ func sharePickerPage(*config.Config) pageSpec {
 	}
 }
 
-// Page names one page for whatever links to it: the launcher's search.
-type Page struct {
-	ID, Title, Icon string
-}
-
 // Pages lists the pages in sidebar order, localized.
-func Pages(cfg *config.Config) []Page {
-	t := i18n.Settings()
-	var out []Page
+func Pages(cfg *config.Config) []settingspage.Page {
+	t := locale.T()
+	out := []settingspage.Page{}
 	for _, s := range layout(cfg) {
 		for _, p := range s.pages {
-			out = append(out, Page{ID: p.id, Title: t.Get(p.navKey), Icon: p.icon})
+			out = append(out, settingspage.Page{ID: p.id, Title: t.Get(p.navKey), Icon: p.icon})
 		}
 	}
 	return out
 }
+
+// ListedPages is the page list for a launcher, without a session and without
+// touching the config: which pages exist does not depend on it.
+func ListedPages() []settingspage.Page { return Pages(config.Defaults()) }
 
 // pageArg is the --page value of a forwarded command line, "" for none.
 func pageArg(args []string) string {

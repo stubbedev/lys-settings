@@ -4,7 +4,7 @@ import (
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // confirmDialogWidth is the confirm's width, lys-ui's MessageBox's.
@@ -21,7 +21,7 @@ const (
 // destructive confirm. It is modal, Esc cancels, Enter does nothing,
 // and only the confirm response drops the overrides.
 func resetAllDialog(k *kit) app.DialogConfig {
-	t := i18n.Settings()
+	t := locale.T()
 	body := k.label(t.Get("settings-reset-all-description"), css.DimLabel)
 	body.SetWrap(true)
 	return app.DialogConfig{

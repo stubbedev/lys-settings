@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/widget"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/styling"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // colorValueEditor is ColorValueControl: the color button (custom
@@ -51,7 +51,7 @@ func newColorValueEditor(k *kit, s slot) *colorValueEditor {
 // token group under its header, a swatch of the token's color in p
 // leading it.
 func colorValueRows(p styling.Palette) ([]widget.DropdownRow, []string) {
-	t := i18n.Settings()
+	t := locale.T()
 	swatch := func(c render.Color) func() widget.Widget {
 		return func() widget.Widget { return widget.NewColorSwatch(c) }
 	}

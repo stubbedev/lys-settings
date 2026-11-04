@@ -1,10 +1,10 @@
 package settings
 
 import (
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The module pages' own list editors (editors/tray_override_list,
@@ -34,7 +34,7 @@ func (r trayOverrideItem) itemValue() any {
 // trayOverrideList is tray_override_list::tray_override_list: an
 // override per row, a nameless one not written, an empty icon unset.
 var trayOverrideList = listRow(func(config.FieldMeta) listSpec {
-	t := i18n.Settings()
+	t := locale.T()
 	return listSpec{
 		addKey: "settings-map-add", rowClass: "string-map-row", blank: trayOverride{}, listCls: "string-map",
 		item: func(k *kit, v any, changed func()) listItem {

@@ -9,12 +9,12 @@ import (
 	"testing"
 
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-ui/widget"
-
 	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-shell/shell/treetest"
+	"github.com/stubbedev/lys-ui/widget"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // Every picker opens with its search entry, inside the popover, taking
@@ -922,7 +922,7 @@ func TestShortPathFieldShowsWhole(t *testing.T) {
 func TestEmptyPathFieldShowsItsPlaceholder(t *testing.T) {
 	k := testKit(t, "")
 	c := newFileEditor(k, pathSlot(k.store, "login.background-image"))
-	if want := i18n.Settings().Get("settings-file-path-placeholder"); c.entry.Placeholder() != want || c.entry.TooltipText() != "" {
+	if want := locale.T().Get("settings-file-path-placeholder"); c.entry.Placeholder() != want || c.entry.TooltipText() != "" {
 		t.Errorf("an empty field shows %q with tooltip %q, want %q and none", c.entry.Placeholder(), c.entry.TooltipText(), want)
 	}
 }

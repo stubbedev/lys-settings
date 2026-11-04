@@ -4,12 +4,12 @@ import (
 	"strconv"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/highlight"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // yamlEditor is the field as a YAML document under key, edited in a highlighted code view and applied as a whole; a
@@ -30,7 +30,7 @@ type yamlEditor struct {
 
 func newYAMLEditor(k *kit, s slot, key string, minLines int) *yamlEditor {
 	c := &yamlEditor{Box: widget.NewBox(widget.Column, 0, 0), k: k, slot: s, key: key}
-	c.badge = k.badge(i18n.Settings().Get("settings-source-unsaved"), "warning")
+	c.badge = k.badge(locale.T().Get("settings-source-unsaved"), "warning")
 	c.badge.SetVisible(false)
 	c.area = widget.NewTextArea(k.mono, k.textPx(), 0)
 	c.area.SetLineNumbers(true)
@@ -44,7 +44,7 @@ func newYAMLEditor(k *kit, s slot, key string, minLines int) *yamlEditor {
 	if minLines > 0 {
 		c.scroll.AddClass("yaml-editor-lines-" + strconv.Itoa(minLines))
 	}
-	apply := k.button(k.label(i18n.Settings().Get("settings-apply")), c.apply, css.SuggestedAction)
+	apply := k.button(k.label(locale.T().Get("settings-apply")), c.apply, css.SuggestedAction)
 	c.Append(c.scroll, true)
 	c.AppendAligned(apply, false, widget.AlignEnd)
 	c.refresh()

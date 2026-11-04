@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
 Name=Lys Settings
-GenericName=Shell Settings
-Comment=Configure the lys-shell desktop shell
+GenericName=Desktop Settings
+Comment=Configure the lys desktop's shell and compositor
 Exec=lys-settings
 Icon=lys-settings
 Terminal=false
 Categories=Settings;DesktopSettings;GTK;
-Keywords=lys-shell;settings;shell;bar;wayland;config;
+Keywords=lys-shell;lys-wm;settings;shell;compositor;bar;wayland;config;
 StartupNotify=true
 StartupWMClass=dev.stubbe.lys.settings

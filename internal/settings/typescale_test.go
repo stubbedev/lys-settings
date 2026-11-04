@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-ui/widget"
-
-	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-shell/styling"
+	"github.com/stubbedev/lys-ui/widget"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // desktopRem is a "Sans 10" desktop's 1rem at 96 dpi, the size the
@@ -57,7 +57,7 @@ func widestApart(face render.Font, names []string) (string, string) {
 // keeps out of reach.
 func TestSidebarTextIsOnTheTypeScale(t *testing.T) {
 	k, w := styledWindow(t)
-	tr := i18n.Settings()
+	tr := locale.T()
 	var navs, heads []string
 	for _, sec := range w.sections {
 		heads = append(heads, tr.Get(sec.key))

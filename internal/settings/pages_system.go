@@ -10,10 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
-
-	"github.com/stubbedev/lys-shell/config"
 )
 
 // generalPage is pages/general.

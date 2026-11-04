@@ -3,11 +3,11 @@ package settings
 import (
 	"time"
 
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The wallpaper page's own editors (editors/wallpaper_cycling,
@@ -38,7 +38,7 @@ func newRevealGroup(k *kit, s slot, specs []rowSpec) *revealGroup {
 	group := widget.NewBox(widget.Column, 0, 0)
 	g := &revealGroup{Revealer: widget.NewRevealer(group), slot: s}
 	for _, rs := range specs {
-		row := newSettingRow(k, rs, fieldControl(k, rs))
+		row := newSettingRow(k, k.store, rs, fieldControl(k, k.store, rs))
 		group.Append(row, false)
 		g.rows = append(g.rows, row)
 	}
@@ -92,7 +92,7 @@ func newMonitorBody(k *kit, field func(key string) slot) control {
 	wallpaper := field("wallpaper")
 	c := &monitorBody{
 		Box:  gapBox(widget.Row),
-		path: newLiveText(k, wallpaper, i18n.Settings().Get("settings-wallpaper-path-placeholder")),
+		path: newLiveText(k, wallpaper, locale.T().Get("settings-wallpaper-path-placeholder")),
 		fit:  newEnumSelect(k, field("fit-mode"), config.MetaOf[config.FitMode]()),
 	}
 	c.path.AddClass("monitor-wallpaper-entry")

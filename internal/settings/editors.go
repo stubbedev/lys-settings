@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/shell/widgets"
 	"github.com/stubbedev/lys-ui/widget"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/shell/widgets"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // editorFunc builds the control for the field at path.
@@ -154,7 +154,7 @@ type text struct {
 }
 
 func newText(k *kit, s slot, optional bool) *text {
-	t := i18n.Settings()
+	t := locale.T()
 	c := &text{Entry: k.entry(), k: k, slot: s, optional: optional}
 	c.AddClass("setting-text-entry")
 	c.badge = k.badge(t.Get("settings-source-unsaved"), "warning")
@@ -194,15 +194,15 @@ func (c *text) refresh() {
 
 // fieldControl builds a row's control: the page's editor, or the one
 // the field's type calls for. A path naming no field is a page bug.
-func fieldControl(k *kit, spec rowSpec) control {
-	meta, ok := config.Field(spec.path)
+func fieldControl(k *kit, be backend, spec rowSpec) control {
+	meta, ok := be.field(spec.path)
 	if !ok {
 		log.Panicf("settings: page row %q names no config field", spec.path)
 	}
 	if spec.editor != nil {
-		return spec.editor(k, pathSlot(k.store, spec.path), meta)
+		return spec.editor(k, be.slot(spec.path), meta)
 	}
-	c, err := autoEditor(k, pathSlot(k.store, spec.path), meta)
+	c, err := autoEditor(k, be.slot(spec.path), meta)
 	if err != nil {
 		log.Panicf("settings: %s: %v", spec.path, err)
 	}

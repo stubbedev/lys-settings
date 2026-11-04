@@ -1,22 +1,19 @@
 package settings
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
-	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
+	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/logging"
+	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/widget"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/internal/portal"
-	"github.com/stubbedev/lys-shell/logging"
-	"github.com/stubbedev/lys-shell/shell/apptheme"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // appID is the window's application id (dev.stubbe.lys.settings, the
@@ -58,6 +55,7 @@ func Run(page string) error {
 	defer sess.Close()
 
 	application := app.NewApplication(sess)
+	shipIcons()
 	defer apptheme.Setup(application)()
 	cfg := svc.Config()
 	theme := apptheme.New(cfg)
@@ -81,10 +79,11 @@ func Run(page string) error {
 		time.AfterFunc(d, func() { application.Invoke(fn) })
 	}
 	w := newWindow(k, cfg, after)
+	k.onWMChange = w.refresh
 	theme.Attach(w.root)
 
 	win, err := application.NewWindow(app.WindowConfig{
-		Title: i18n.Settings().Get("settings-title"), AppID: appID,
+		Title: locale.T().Get("settings-title"), AppID: appID,
 		Width: windowWidth, Height: windowHeight,
 		Root: w.root, Background: theme.RenderPalette().Surface,
 	})
@@ -118,6 +117,18 @@ func Run(page string) error {
 	})
 	defer cancel()
 	return application.Run()
+}
+
+// shipIcons puts the icons this app installs on the search path: they live in
+// its own share directory, so it needs no lys-shell and owns no file of its.
+func shipIcons() {
+	exe, err := os.Executable()
+	if err != nil {
+		log.Printf("settings: icons: find this program: %v", err)
+		return
+	}
+	dir := filepath.Join(filepath.Dir(exe), "..", "share", "lys-settings", "icons")
+	widget.SetIconSearchPaths(append(widget.IconSearchPaths(), dir))
 }
 
 // confirmResetAll asks, then drops every runtime override
@@ -177,25 +188,18 @@ func (p windowPickers) font(family string, monospace bool, fn func(string)) {
 	}
 }
 
-// openFile asks the file chooser portal on the session bus, off the
-// loop, and hands the pick back on it (FileDialog.open).
+// openFile asks lys-ui's file picker for one file: a settings app runs where no
+// portal does, on lys-wm without the shell.
 func (p windowPickers) openFile(fn func(path string)) {
-	go func() {
-		conn, err := dbus.ConnectSessionBus()
-		if err != nil {
-			log.Printf("settings: file chooser: %v", err)
-			return
-		}
-		defer func() { _ = conn.Close() }()
-		path, err := portal.OpenFile(context.Background(), conn, "")
-		if err != nil {
-			if !errors.Is(err, portal.ErrCancelled) {
-				log.Printf("settings: file chooser: %v", err)
+	if _, err := p.app.OpenFileDialog(p.win, app.FileDialogConfig{
+		OnOpen: func(paths []string) {
+			if len(paths) > 0 {
+				fn(paths[0])
 			}
-			return
-		}
-		p.app.Invoke(func() { fn(path) })
-	}()
+		},
+	}); err != nil {
+		log.Printf("settings: file chooser: %v", err)
+	}
 }
 
 // pickerPopoverConfig is an editor's popover: it opens from the editor

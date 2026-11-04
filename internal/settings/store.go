@@ -1,5 +1,6 @@
-// Package settings is lys-settings: the GUI over the config, every
-// change a runtime override persisted to runtime.yaml as it lands.
+// Package settings is lys-settings: the GUI over lys-shell's and lys-wm's
+// configs. A shell change is a runtime override persisted to runtime.yaml as
+// it lands; a lys-wm change is an edit of its config file (wm.go).
 // Pages are data (page.go): rows name config paths, and the editor for
 // each comes from the field's type (config.Field) unless the page asks
 // for another.
@@ -13,7 +14,8 @@ import (
 	"strings"
 
 	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // store is the config the window edits. Every write is a runtime
@@ -181,7 +183,7 @@ func sourceOf(s store, path string) sourceInfo {
 		}
 		path = leaf
 	}
-	t := i18n.Settings()
+	t := locale.T()
 	key, class := "", ""
 	_, inConfig := s.svc.ConfigValue(path)
 	switch s.svc.Source(path) {
@@ -204,6 +206,21 @@ func sourceOf(s store, path string) sourceInfo {
 		reset: s.svc.Source(path) == config.SourceRuntime,
 	}
 }
+
+// backend is the config a page's rows edit: lys-shell's through its config
+// package, lys-wm's through its config file.
+type backend interface {
+	field(path string) (config.FieldMeta, bool)
+	slot(path string) slot
+	reset(path string)
+	source(path string) sourceInfo
+}
+
+func (s store) field(path string) (config.FieldMeta, bool) { return config.Field(path) }
+
+func (s store) slot(path string) slot { return pathSlot(s, path) }
+
+func (s store) source(path string) sourceInfo { return sourceOf(s, path) }
 
 // slot is where an editor reads and writes its value: a config path,
 // or one item of a list editor (written back with the whole list).

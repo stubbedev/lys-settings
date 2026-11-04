@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // Window geometry and the page switch (app/mod.rs, app/window.rs).
@@ -55,7 +55,7 @@ func newWindow(k *kit, cfg *config.Config, after func(time.Duration, func())) *w
 	w.stack.SetTransition(widget.StackCrossfade, pageTransition)
 	first := firstPage(w.sections)
 
-	t := i18n.Settings()
+	t := locale.T()
 	closeBtn := k.button(k.icon("ld-x-symbolic"), func() {
 		if w.onClose != nil {
 			w.onClose()

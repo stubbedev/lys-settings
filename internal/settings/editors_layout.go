@@ -6,11 +6,11 @@ import (
 	"slices"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The bar layout editor (editors/bar_layout): a card per monitor
@@ -128,7 +128,7 @@ func (c *layoutEditor) rebuild() {
 // card is LayoutCard: the monitor and extends entries, the show switch
 // and the delete button over the zones (or the hidden note).
 func (c *layoutEditor) card(i int) widget.Widget {
-	t := i18n.Settings()
+	t := locale.T()
 	l := &c.layouts[i]
 	header := gapBox(widget.Row)
 	header.AddClass("layout-card-header")
@@ -198,7 +198,7 @@ func (c *layoutEditor) card(i int) widget.Widget {
 // zone labels, the zone's chips (the drop target), the add-module
 // picker and the add-group button.
 func (c *layoutEditor) zoneRow(at zoneRef, labels *widget.SizeGroup) widget.Widget {
-	t := i18n.Settings()
+	t := locale.T()
 	row := gapBox(widget.Row)
 	row.AddClass("layout-zone")
 	chips := widget.NewChipBox()
@@ -274,7 +274,7 @@ func (c *layoutEditor) chip(item config.BarItem) *widget.Chip {
 			c.rebuild()
 		})
 	}, "chip-add", css.Ghost, css.Icon)
-	add.SetTooltip(i18n.Settings().Get("settings-layout-add-module"))
+	add.SetTooltip(locale.T().Get("settings-layout-add-module"))
 	content.AppendAligned(add, false, widget.AlignCenter)
 	chip.SetContent(content)
 	chip.SetOnDismiss(func() { c.removeItem(chip) })

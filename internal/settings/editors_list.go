@@ -5,11 +5,11 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The list editors (string_list, icon_list, enum_list): one row per
@@ -75,7 +75,7 @@ func newListEditor(k *kit, s slot, spec listSpec) *listEditor {
 // listButton is list_controls' add/remove button.
 func listButton(k *kit, icon, tooltipKey, class string, onClick func()) *widget.Button {
 	b := k.button(k.icon(icon), onClick, "list-control-button", class, css.Outline, css.Icon)
-	b.SetTooltip(i18n.Settings().Get(tooltipKey))
+	b.SetTooltip(locale.T().Get(tooltipKey))
 	return b
 }
 
@@ -273,7 +273,7 @@ func (m mapItem) itemValue() any { return [2]string{m.key.Text(), m.value.Text()
 // stringMap is string_map::string_map: key/value rows, an empty key
 // dropped on write, the stored map shown sorted by key.
 var stringMap = listRow(func(config.FieldMeta) listSpec {
-	t := i18n.Settings()
+	t := locale.T()
 	return listSpec{
 		addKey: "settings-map-add", rowClass: "string-map-row", blank: [2]string{}, classes: []string{"string-map-editor"}, listCls: "string-map",
 		item: func(k *kit, v any, changed func()) listItem {

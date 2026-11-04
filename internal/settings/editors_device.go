@@ -7,11 +7,10 @@ import (
 	"time"
 
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
-	"github.com/stubbedev/lys-ui/widget"
-
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/service/pulse"
 	"github.com/stubbedev/lys-shell/service/recorder"
+	"github.com/stubbedev/lys-ui/widget"
 )
 
 // deviceSelect is DeviceSelectControl: a dropdown of devices writing

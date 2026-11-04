@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-ui/app"
-	"github.com/stubbedev/lys-ui/widget"
-
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-shell/shell/treetest"
+	"github.com/stubbedev/lys-ui/app"
+	"github.com/stubbedev/lys-ui/widget"
 )
 
 // geometryYAML gives every list and card editor items to lay out.
@@ -218,7 +217,7 @@ func TestCardFieldsLineUp(t *testing.T) {
 // apart: the button is lys-ui's outline icon button, not a bare swatch.
 func TestCustomColorButtonMatchesItsDropdown(t *testing.T) {
 	k := testKit(t, "modules:\n  clock:\n    icon-color: \"#123456\"\n")
-	c := fieldControl(k, field("modules.clock.icon-color")).(*colorValueEditor)
+	c := fieldControl(k, k.store, field("modules.clock.icon-color")).(*colorValueEditor)
 	apptheme.New(k.store.svc.Config()).Attach(c.Box)
 	widget.SizeWithinAsChild(c.Box, widget.Size{W: 600, H: 200})
 	widget.ArrangeAsChild(c.Box, render.Rect{W: 600, H: 200})

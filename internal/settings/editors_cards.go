@@ -6,11 +6,11 @@ import (
 	"strconv"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // The card lists (card_form, threshold_list, the preset and override
@@ -177,7 +177,7 @@ func (c *cardList) rebuild() {
 // field label of the card, the identity's too, sized alike so the
 // controls line up.
 func (c *cardList) appendCard(i int) {
-	t := i18n.Settings()
+	t := locale.T()
 	chrome := cardFormChrome
 	if c.spec.chrome != nil {
 		chrome = *c.spec.chrome
@@ -275,7 +275,7 @@ func (c *cardList) validate() {
 		s, _ := c.local[i][c.spec.unique].(string)
 		if s != "" && counts[s] > 1 {
 			w.AddClass("error")
-			w.SetTooltip(i18n.Settings().Get("settings-toast-preset-id-duplicate"))
+			w.SetTooltip(locale.T().Get("settings-toast-preset-id-duplicate"))
 		} else {
 			w.RemoveClass("error")
 			w.SetTooltip("")
@@ -393,7 +393,7 @@ func thresholdTitle(item map[string]any, number int) string {
 	case hasBelow:
 		return "≤ " + below
 	}
-	return i18n.Settings().Get("settings-threshold-card-title") + " " + strconv.Itoa(number)
+	return locale.T().Get("settings-threshold-card-title") + " " + strconv.Itoa(number)
 }
 
 // liveText is card_form::entry: an entry writing as it is typed.

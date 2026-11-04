@@ -15,17 +15,17 @@ import (
 
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-lib/sockdir"
+	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/service/recorder"
+	"github.com/stubbedev/lys-shell/shell/apptheme"
+	"github.com/stubbedev/lys-shell/shell/treetest"
+	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/transfer"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/service/recorder"
-	"github.com/stubbedev/lys-shell/shell/apptheme"
-	"github.com/stubbedev/lys-shell/shell/treetest"
-	"github.com/stubbedev/lys-shell/styling"
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // testKit is a kit over a config directory holding configYAML, its
@@ -89,7 +89,7 @@ func TestSourceBadges(t *testing.T) {
 	})
 	t.Run("a config value off the default is config", func(t *testing.T) {
 		got := sourceOf(k.store, "bar.dropdown-shadow")
-		if !got.badge || got.class != "info" || got.reset || got.label != i18n.Settings().Get("settings-source-config") {
+		if !got.badge || got.class != "info" || got.reset || got.label != locale.T().Get("settings-source-config") {
 			t.Errorf("config = %+v, want the info badge and no reset", got)
 		}
 	})
@@ -108,7 +108,7 @@ func TestSourceBadges(t *testing.T) {
 		}
 		_ = k.store.set("bar.dropdown-shadow", true)
 		got := sourceOf(k.store, "bar.dropdown-shadow")
-		if got.class != "warning" || !got.reset || got.tooltip != i18n.Settings().Attr("settings-source-override", "description") {
+		if got.class != "warning" || !got.reset || got.tooltip != locale.T().Attr("settings-source-override", "description") {
 			t.Errorf("runtime over config = %+v, want the override badge with reset", got)
 		}
 	})
@@ -139,7 +139,7 @@ func TestEnumSelectLabelsAndWrites(t *testing.T) {
 	k := testKit(t, "")
 	meta, _ := config.Field("osd.position")
 	c := newEnumSelect(k, pathSlot(k.store, "osd.position"), meta)
-	if got, want := c.Selection(), i18n.Settings().Get("enum-osd-position-bottom"); got != want {
+	if got, want := c.Selection(), locale.T().Get("enum-osd-position-bottom"); got != want {
 		t.Errorf("selection %q, want the default's label %q", got, want)
 	}
 	c.SetSelected(0)
@@ -233,7 +233,7 @@ func TestTextCommitsOnEnterWithTheDirtyBadge(t *testing.T) {
 
 func TestSliderCommitsPercentages(t *testing.T) {
 	k := testKit(t, "")
-	c := fieldControl(k, field("bar.dropdown-opacity", percentage)).(*slider)
+	c := fieldControl(k, k.store, field("bar.dropdown-opacity", percentage)).(*slider)
 	if c.Value() != 75 || c.Label().Text() != "75%" {
 		t.Fatalf("slider %v %q, want the default 75%%", c.Value(), c.Label().Text())
 	}
@@ -254,13 +254,13 @@ func TestFieldControlRefusesWhatItCannotEdit(t *testing.T) {
 			t.Error("a row naming no field built")
 		}
 	}()
-	fieldControl(k, field("osd.nope"))
+	fieldControl(k, k.store, field("osd.nope"))
 }
 
 func TestRowResetButtonFollowsTheOverride(t *testing.T) {
 	k := testKit(t, "")
 	spec := field("bar.dropdown-shadow")
-	row := newSettingRow(k, spec, fieldControl(k, spec))
+	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
 	if row.reset.Enabled() || row.badge.Visible() || !strings.Contains(row.reset.InlineStyle(), "opacity: 0") {
 		t.Fatal("a default row shows a live reset or a badge")
 	}
@@ -283,7 +283,7 @@ func TestRowResetButtonFollowsTheOverride(t *testing.T) {
 // settings FTL and every row builds.
 func TestEveryPageBuilds(t *testing.T) {
 	k := testKit(t, "")
-	tr := i18n.Settings()
+	tr := locale.T()
 	ids := map[string]bool{}
 	for _, s := range layout(k.store.svc.Config()) {
 		if !tr.Has(s.key) {
@@ -338,7 +338,7 @@ func (f *fakeAfter) run() {
 // sidebarItem is the sidebar's row for the page labelled navKey.
 func sidebarItem(t *testing.T, w *window, navKey string) *widget.Button {
 	t.Helper()
-	return treetest.Button(t, w.sidebar, i18n.Settings().Get(navKey))
+	return treetest.Button(t, w.sidebar, locale.T().Get(navKey))
 }
 
 func TestWindowNavigatesAndDropsOldPages(t *testing.T) {
@@ -380,7 +380,7 @@ func TestSidebarSectionsCollapse(t *testing.T) {
 	widget.SizeWithin(w.root, widget.Size{W: windowWidth, H: windowHeight})
 	w.root.Arrange(render.Rect{W: windowWidth, H: windowHeight})
 	sec := w.sections[0]
-	head := treetest.Button(t, w.sidebar, i18n.Settings().Get(sec.key))
+	head := treetest.Button(t, w.sidebar, locale.T().Get(sec.key))
 	item := sidebarItem(t, w, sec.pages[0].navKey)
 	if !widget.IsVisible(item) {
 		t.Fatal("a section opens folded")
@@ -431,12 +431,12 @@ func TestResetAllConfirmation(t *testing.T) {
 		t.Errorf("dialog modal %v bare %v cancel %q default %q, want a modal alert Esc cancels and Enter leaves alone",
 			cfg.Modal, cfg.Bare, cfg.CancelResponse, cfg.DefaultResponse)
 	}
-	if cfg.Title != i18n.Settings().Get("settings-reset-all-title") {
+	if cfg.Title != locale.T().Get("settings-reset-all-title") {
 		t.Errorf("title %q", cfg.Title)
 	}
 	want := []app.DialogButton{
-		{Label: i18n.Settings().Get("settings-reset-all-cancel"), Response: responseCancel, Role: app.ButtonRoleCancel, Appearance: app.AppearancePlain},
-		{Label: i18n.Settings().Get("settings-reset-all-confirm"), Response: responseConfirm, Appearance: app.AppearanceDestructive},
+		{Label: locale.T().Get("settings-reset-all-cancel"), Response: responseCancel, Role: app.ButtonRoleCancel, Appearance: app.AppearancePlain},
+		{Label: locale.T().Get("settings-reset-all-confirm"), Response: responseConfirm, Appearance: app.AppearanceDestructive},
 	}
 	if !slices.Equal(cfg.Buttons, want) {
 		t.Errorf("buttons %+v, want cancel then the destructive confirm, neither on Enter", cfg.Buttons)
@@ -501,7 +501,7 @@ func TestOptionalEnumInheritsOrPicks(t *testing.T) {
 	k := testKit(t, "")
 	meta, _ := config.Field("animations.enter")
 	c := newOptionalEnum(k, pathSlot(k.store, "animations.enter"), meta)
-	if c.Selected() != 0 || c.Selection() != i18n.Settings().Get("settings-inherit") {
+	if c.Selected() != 0 || c.Selection() != locale.T().Get("settings-inherit") {
 		t.Fatalf("unset shows %q", c.Selection())
 	}
 	c.SetSelected(2)
@@ -661,7 +661,7 @@ func TestFontRowsPickTheirKind(t *testing.T) {
 		if !ok {
 			t.Fatalf("no settings row for %s", path)
 		}
-		ed := fieldControl(k, spec).(*fontEditor)
+		ed := fieldControl(k, k.store, spec).(*fontEditor)
 		if ed.monospace != mono {
 			t.Errorf("%s editor monospace %v, want %v", path, ed.monospace, mono)
 		}
@@ -918,7 +918,7 @@ func TestColorValueEditor(t *testing.T) {
 	if m, ok := config.Field(path); !ok || m.Type != "ColorValue" {
 		t.Fatalf("test premise: %s is %+v", path, m)
 	}
-	c := fieldControl(k, field(path)).(*colorValueEditor)
+	c := fieldControl(k, k.store, field(path)).(*colorValueEditor)
 	idx := func(id string) int { return slices.Index(c.ids, id) }
 	cur, _ := k.store.value(path).(string)
 	if c.drop.Selected() != idx(cur) || c.swatch.Visible() {
@@ -972,7 +972,7 @@ func listedSwatches(t *testing.T, c *colorValueEditor) []render.Color {
 func TestColorValueRowsLeadWithTheirTokensSwatch(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.clock.icon-color"
-	c := fieldControl(k, field(path)).(*colorValueEditor)
+	c := fieldControl(k, k.store, field(path)).(*colorValueEditor)
 	p := k.palette()
 	want := []render.Color{0}
 	for _, tok := range config.CssTokens() {
@@ -1040,7 +1040,7 @@ func TestIconEditorPicks(t *testing.T) {
 	}
 	p.pick("")
 	c.refresh()
-	if c.label.Text() != i18n.Settings().Get("settings-icon-none") || c.icon.Name() != "ld-image-symbolic" {
+	if c.label.Text() != locale.T().Get("settings-icon-none") || c.icon.Name() != "ld-image-symbolic" {
 		t.Errorf("cleared trigger shows %q/%q", c.label.Text(), c.icon.Name())
 	}
 }
@@ -1096,7 +1096,7 @@ func TestActionEditor(t *testing.T) {
 func TestStringListEditor(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.battery.level-icons"
-	c := fieldControl(k, field(path, stringList)).(*listEditor)
+	c := fieldControl(k, k.store, field(path, stringList)).(*listEditor)
 	start, _ := k.store.value(path).([]any)
 	if len(c.items) != len(start) || len(start) < 2 {
 		t.Fatalf("%d rows for %v", len(c.items), start)
@@ -1142,7 +1142,7 @@ func TestEnumAndIconListItems(t *testing.T) {
 	if !ok || m.Elem == nil || m.Elem.Kind != config.FieldEnum {
 		t.Fatalf("test premise: %s is %+v", path, m)
 	}
-	c := fieldControl(k, field(path, enumList)).(*listEditor)
+	c := fieldControl(k, k.store, field(path, enumList)).(*listEditor)
 	c.appendRow(c.spec.blank)
 	last := c.items[len(c.items)-1].(*enumItem)
 	last.SetSelected(2)
@@ -1155,7 +1155,7 @@ func TestEnumAndIconListItems(t *testing.T) {
 	prev := iconNames
 	iconNames = func() []string { return []string{"ld-a-symbolic"} }
 	t.Cleanup(func() { iconNames = prev })
-	icons := fieldControl(k, field("modules.battery.level-icons", iconList)).(*listEditor)
+	icons := fieldControl(k, k.store, field("modules.battery.level-icons", iconList)).(*listEditor)
 	first := icons.items[0].(iconItem)
 	first.btn.ClickAt(widget.Point{})
 	clickIcon(t, first.picker, "ld-a-symbolic")
@@ -1170,7 +1170,7 @@ func TestEnumAndIconListItems(t *testing.T) {
 func TestEnumListRowsMoveAndRemove(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.dashboard.user-session.actions"
-	c := fieldControl(k, field(path, enumList)).(*listEditor)
+	c := fieldControl(k, k.store, field(path, enumList)).(*listEditor)
 	before, _ := k.store.value(path).([]any)
 	if len(before) < 2 {
 		t.Fatalf("test premise: %s holds %v", path, before)
@@ -1194,7 +1194,7 @@ func TestThresholdCards(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.battery.thresholds"
 	_ = k.store.set(path, []any{})
-	c := fieldControl(k, field(path, thresholdList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, thresholdList)).(*cardList)
 	if len(c.cards) != 0 {
 		t.Fatalf("%d cards for an empty list", len(c.cards))
 	}
@@ -1202,7 +1202,7 @@ func TestThresholdCards(t *testing.T) {
 	c.local = append(c.local, c.spec.blank())
 	c.commit()
 	c.rebuild()
-	if len(c.cards) != 1 || c.cards[0].title.Text() != i18n.Settings().Get("settings-threshold-card-title")+" 1" {
+	if len(c.cards) != 1 || c.cards[0].title.Text() != locale.T().Get("settings-threshold-card-title")+" 1" {
 		t.Fatalf("new card titled %q", c.cards[0].title.Text())
 	}
 	below := c.cards[0].controls[1].(*optionalNumber)
@@ -1248,7 +1248,7 @@ func TestStringMapEditor(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.window-title.icon-mappings"
 	_ = k.store.set(path, map[string]any{"b": "2", "a": "1"})
-	c := fieldControl(k, field(path, stringMap)).(*listEditor)
+	c := fieldControl(k, k.store, field(path, stringMap)).(*listEditor)
 	if len(c.items) != 2 || c.items[0].itemValue() != [2]string{"a", "1"} {
 		t.Fatalf("rows %v, want the pairs sorted by key", c.values())
 	}
@@ -1281,7 +1281,7 @@ func TestStringMapEditor(t *testing.T) {
 func TestMountPointsText(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.storage.mount-point"
-	c := fieldControl(k, field(path, mountPoints)).(*text)
+	c := fieldControl(k, k.store, field(path, mountPoints)).(*text)
 	for typed, want := range map[string]any{"/home": "/home", " /, /home ,": []any{"/", "/home"}, "  ": "/"} {
 		c.SelectAll()
 		c.Insert(typed)
@@ -1300,7 +1300,7 @@ func TestMountPointsText(t *testing.T) {
 func TestOptionalSize(t *testing.T) {
 	k := testKit(t, "")
 	path := "dropdowns.audio.width"
-	c := fieldControl(k, dropdownSizeRows("dropdowns.audio")[0]).(*optionalSize)
+	c := fieldControl(k, k.store, dropdownSizeRows("dropdowns.audio")[0]).(*optionalSize)
 	if c.on.On() || c.size.Enabled() || k.store.value(path) != nil {
 		t.Fatal("an unset width shows an override")
 	}
@@ -1326,7 +1326,7 @@ func TestOptionalSize(t *testing.T) {
 func TestToastPresetCards(t *testing.T) {
 	k := testKit(t, "")
 	path := "osd.presets"
-	c := fieldControl(k, field(path, toastPresetList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, toastPresetList)).(*cardList)
 	c.local = append(c.local, c.spec.blank())
 	c.commit()
 	c.rebuild()
@@ -1376,7 +1376,7 @@ func TestThemeSelectorApplies(t *testing.T) {
 		t.Fatal("test premise: built-in themes")
 	}
 	spec := themePreset()
-	row := newSettingRow(k, spec, fieldControl(k, spec))
+	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
 	c := row.ctl.(*themeSelector)
 	if c.badge.Visible() {
 		t.Error("no base theme shows a badge")
@@ -1410,7 +1410,7 @@ func TestCyclingRevealFollowsTheDirectory(t *testing.T) {
 		field("wallpaper.cycling-interval-mins", spin(1, 1440, 1, 0)),
 		field("wallpaper.cycling-same-image"),
 	)
-	row := newSettingRow(k, spec, fieldControl(k, spec))
+	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
 	g := row.ctl.(*revealGroup)
 	if g.Revealed() || g.Progress() != 0 {
 		t.Fatalf("no directory: revealed %v at %v, want hidden at once", g.Revealed(), g.Progress())
@@ -1451,7 +1451,7 @@ func TestCyclingRevealFollowsTheDirectory(t *testing.T) {
 
 	// A directory already set shows the options at once.
 	k2 := testKit(t, "wallpaper:\n  cycling-directory: /walls\n")
-	g2 := fieldControl(k2, spec).(*revealGroup)
+	g2 := fieldControl(k2, k2.store, spec).(*revealGroup)
 	if !g2.Revealed() || g2.Progress() != 1 {
 		t.Errorf("set directory: revealed %v at %v, want shown at once", g2.Revealed(), g2.Progress())
 	}
@@ -1462,7 +1462,7 @@ func TestMonitorWallpaperCards(t *testing.T) {
 	f := &fakePickers{}
 	k.pickers = f
 	path := "wallpaper.monitors"
-	c := fieldControl(k, field(path, monitorWallpaperList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, monitorWallpaperList)).(*cardList)
 	if len(c.cards) != 0 {
 		t.Fatalf("%d cards for no monitors", len(c.cards))
 	}
@@ -1522,7 +1522,7 @@ func TestMonitorWallpaperCards(t *testing.T) {
 		t.Errorf("label %v and body %v share the row; the body should fill it", label, body.Bounds())
 	}
 	add := c.Children()[1].(*widget.Button)
-	if add.TooltipText() != i18n.Settings().Get("settings-monitor-add") {
+	if add.TooltipText() != locale.T().Get("settings-monitor-add") {
 		t.Errorf("add tooltip %q, want the monitor's", add.TooltipText())
 	}
 	remove = c.list.Children()[0].(*widget.Box).Children()[0].(*widget.Box).Children()[2].(*widget.Button)
@@ -1532,7 +1532,7 @@ func TestMonitorWallpaperCards(t *testing.T) {
 	}
 
 	// card_form lists keep their own chrome.
-	th := fieldControl(k, field("modules.cpu.thresholds", thresholdList)).(*cardList)
+	th := fieldControl(k, k.store, field("modules.cpu.thresholds", thresholdList)).(*cardList)
 	th.local = append(th.local, th.spec.blank())
 	th.rebuild()
 	if !th.list.Children()[0].(*widget.Box).HasClass("card-form-card") {
@@ -1562,7 +1562,7 @@ func addButton(c *listEditor) *widget.Button { return c.Children()[1].(*widget.B
 
 func TestListAddWritesOnlyAChange(t *testing.T) {
 	k := testKit(t, "")
-	m := fieldControl(k, field("modules.window-title.icon-mappings", stringMap)).(*listEditor)
+	m := fieldControl(k, k.store, field("modules.window-title.icon-mappings", stringMap)).(*listEditor)
 	if m.rows.HasClass("string-list") || !m.rows.HasClass("string-map") {
 		t.Error("the map's rows lack string_map's class")
 	}
@@ -1570,7 +1570,7 @@ func TestListAddWritesOnlyAChange(t *testing.T) {
 	if len(m.items) != 1 || k.store.svc.Source("modules.window-title.icon-mappings") != config.SourceDefault {
 		t.Errorf("a blank pair wrote the map (%d rows, source %v)", len(m.items), k.store.svc.Source("modules.window-title.icon-mappings"))
 	}
-	l := fieldControl(k, field("modules.notifications.blocklist", stringList)).(*listEditor)
+	l := fieldControl(k, k.store, field("modules.notifications.blocklist", stringList)).(*listEditor)
 	if !l.rows.HasClass("string-list") {
 		t.Error("a list lost string-list")
 	}
@@ -1590,7 +1590,7 @@ func TestWorkspaceStyleMapNumericKeys(t *testing.T) {
 		"2":  map[string]any{"icon": "ld-globe-symbolic", "color": "#4a90d9"},
 		"-1": map[string]any{},
 	})
-	c := fieldControl(k, field(path, workspaceStyleMap(true))).(*listEditor)
+	c := fieldControl(k, k.store, field(path, workspaceStyleMap(true))).(*listEditor)
 	var keys []string
 	for _, it := range c.items {
 		keys = append(keys, it.itemValue().(workspaceStyle).key)
@@ -1636,7 +1636,7 @@ func TestWorkspaceStyleMapNamedKeys(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.niri-workspaces.workspace-map"
 	_ = k.store.set(path, map[string]any{"web": map[string]any{}, "chat": map[string]any{"label": "c"}})
-	c := fieldControl(k, field(path, workspaceStyleMap(false))).(*listEditor)
+	c := fieldControl(k, k.store, field(path, workspaceStyleMap(false))).(*listEditor)
 	if c.items[0].itemValue().(workspaceStyle).key != "chat" {
 		t.Errorf("first row %v, want names sorted", c.items[0].itemValue())
 	}
@@ -1706,7 +1706,7 @@ func TestDeviceSelect(t *testing.T) {
 	cameraChoices = func() []recorder.DeviceChoice {
 		return []recorder.DeviceChoice{{ID: "", Label: "Automatic"}, {ID: "/dev/video0", Label: "Integrated"}}
 	}
-	cam := fieldControl(k, field("modules.recorder.webcam-device", webcamDevice)).(*deviceSelect)
+	cam := fieldControl(k, k.store, field("modules.recorder.webcam-device", webcamDevice)).(*deviceSelect)
 	// The saved camera is gone: it stays listed, under its path, selected.
 	if cam.Selection() != "/dev/video9" || len(cam.choices) != 3 {
 		t.Errorf("selection %q of %v, want the saved node kept", cam.Selection(), cam.choices)
@@ -1730,7 +1730,7 @@ func TestDeviceSelect(t *testing.T) {
 	microphoneChoices = func() []recorder.DeviceChoice {
 		return recorder.MicrophoneChoices([]recorder.Source{{Name: "mic", Description: "Microphone"}, {Name: "usb", Description: "USB"}})
 	}
-	mic := fieldControl(k, field("modules.recorder.microphone-device", microphoneDevice)).(*deviceSelect)
+	mic := fieldControl(k, k.store, field("modules.recorder.microphone-device", microphoneDevice)).(*deviceSelect)
 	if mic.Selection() != "usb" || deliver == nil {
 		t.Fatalf("before the query: %q (query pending %v), want the saved id kept", mic.Selection(), deliver != nil)
 	}
@@ -1749,7 +1749,7 @@ func TestDeviceSelect(t *testing.T) {
 
 func TestMillisecondsSlider(t *testing.T) {
 	k := testKit(t, "")
-	c := fieldControl(k, field("modules.recorder.start-delay-ms", milliseconds(0, 5000))).(*slider)
+	c := fieldControl(k, k.store, field("modules.recorder.start-delay-ms", milliseconds(0, 5000))).(*slider)
 	if c.Format(1500) != "1.5s" || c.Label().Text() != c.Format(c.Value()) {
 		t.Errorf("label %q, want seconds", c.Format(1500))
 	}
@@ -1763,7 +1763,7 @@ func TestTrayOverrideList(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.systray.overrides"
 	_ = k.store.set(path, []any{map[string]any{"name": "discord", "color": "#ff0000"}})
-	c := fieldControl(k, field(path, trayOverrideList)).(*listEditor)
+	c := fieldControl(k, k.store, field(path, trayOverrideList)).(*listEditor)
 	row := c.items[0].(trayOverrideItem)
 	if row.name.Text() != "discord" || row.icon.Text() != "" {
 		t.Fatalf("row shows %q %q", row.name.Text(), row.icon.Text())
@@ -1797,7 +1797,7 @@ func TestTrayOverrideList(t *testing.T) {
 func TestMailAccountCards(t *testing.T) {
 	k := testKit(t, "")
 	path := "modules.mail.accounts"
-	c := fieldControl(k, field(path, mailAccountList)).(*cardList)
+	c := fieldControl(k, k.store, field(path, mailAccountList)).(*cardList)
 	c.local = append(c.local, c.spec.blank())
 	c.commit()
 	c.rebuild()
@@ -1837,7 +1837,7 @@ func TestMailAccountCards(t *testing.T) {
 
 func TestYAMLEditor(t *testing.T) {
 	k := testKit(t, "modules:\n  custom:\n    - id: cpu\n      command: echo 1\n")
-	c := fieldControl(k, field("modules.custom", yamlRow("custom", 40))).(*yamlEditor)
+	c := fieldControl(k, k.store, field("modules.custom", yamlRow("custom", 40))).(*yamlEditor)
 	if !strings.HasPrefix(c.area.Text(), "custom:\n  - ") || !strings.Contains(c.area.Text(), "id: cpu") {
 		t.Fatalf("document %q, want the module under custom", c.area.Text())
 	}
@@ -1920,7 +1920,7 @@ func newTestLayout(t *testing.T) (*kit, *layoutEditor) {
 	t.Helper()
 	k := testKit(t, layoutYAML)
 	k.pickers = &fakePickers{}
-	return k, fieldControl(k, field("bar.layout", layoutRow)).(*layoutEditor)
+	return k, fieldControl(k, k.store, field("bar.layout", layoutRow)).(*layoutEditor)
 }
 
 func storedLayouts(k *kit) []config.BarLayout { return k.store.svc.Config().Bar.Layout }
@@ -2063,7 +2063,7 @@ func TestLayoutEditorModulesAndGroups(t *testing.T) {
 	}
 	row := c.list.Children()[0].(*widget.Box).Children()[2].(*widget.Box).Children()[zoneRight].(*widget.Box)
 	click(root, row.Children()[3].(*widget.Button))
-	if got := storedLayouts(k)[0].Right; len(got) != 3 || got[2].Group == nil || got[2].Group.Name != i18n.Settings().Get("settings-layout-default-group") {
+	if got := storedLayouts(k)[0].Right; len(got) != 3 || got[2].Group == nil || got[2].Group.Name != locale.T().Get("settings-layout-default-group") {
 		t.Errorf("right after add group: %+v", got)
 	}
 }
@@ -2184,7 +2184,7 @@ func TestSettingsIsSingleInstance(t *testing.T) {
 func TestRowBadgeIsALysUIBadgeWithOneTint(t *testing.T) {
 	k := testKit(t, "")
 	spec := field("bar.dropdown-shadow")
-	row := newSettingRow(k, spec, fieldControl(k, spec))
+	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
 	if row.badge.Variant() != widget.BadgeSecondary {
 		t.Errorf("badge variant %v, want the quiet secondary", row.badge.Variant())
 	}
