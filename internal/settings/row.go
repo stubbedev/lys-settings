@@ -117,9 +117,17 @@ func gapBox(axis widget.Axis) *widget.Box {
 // browseButton is the outline folder button asking the file chooser,
 // pick getting the chosen path.
 func (k *kit) browseButton(pick func(path string)) *widget.Button {
+	return k.chooserButton(func(p pickers) { p.openFile(pick) })
+}
+
+func (k *kit) folderButton(pick func(path string)) *widget.Button {
+	return k.chooserButton(func(p pickers) { p.openFolder(pick) })
+}
+
+func (k *kit) chooserButton(open func(pickers)) *widget.Button {
 	return k.button(k.icon("ld-folder-open-symbolic"), func() {
 		if k.pickers != nil {
-			k.pickers.openFile(pick)
+			open(k.pickers)
 		}
 	}, "browse", css.Outline, css.Icon)
 }

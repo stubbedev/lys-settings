@@ -32,6 +32,7 @@ type pickers interface {
 	// openFile asks the file chooser for one file, calling fn on the
 	// loop with its path; a dismissed chooser calls nothing.
 	openFile(fn func(path string))
+	openFolder(fn func(path string))
 }
 
 // fontPickerLabelChars caps the face's label (FontControl).
@@ -132,6 +133,7 @@ type pickerSpec struct {
 	// filter on search-changed after GTK's default delay. The others
 	// are plain gtk::Entry filtering per keystroke.
 	searchEntry bool
+	text        func(name string) string
 }
 
 // searchPicker is the list pickers' popover (the module picker, the
@@ -151,6 +153,7 @@ type searchPicker struct {
 	// rows holds a row per name of all, in its order.
 	rows *widget.FlowBox
 	all  []string
+	text func(name string) string
 	pick func(string)
 }
 
@@ -165,7 +168,7 @@ func openSearchPicker(k *kit, anchor widget.Widget, names []string, spec pickerS
 }
 
 func newSearchPicker(k *kit, names []string, spec pickerSpec, pick func(string)) *searchPicker {
-	p := &searchPicker{all: names, pick: pick}
+	p := &searchPicker{all: names, text: spec.text, pick: pick}
 	root, contents := pickerFrame(spec.class)
 	p.root = root
 	if spec.searchEntry {
@@ -221,6 +224,9 @@ func pickerRow(content widget.Widget) *widget.Box {
 func (p *searchPicker) filter(query string) {
 	match := matcher(query)
 	for i, name := range p.all {
+		if p.text != nil {
+			name = p.text(name)
+		}
 		p.rows.ChildAt(i).SetVisible(match(name))
 	}
 }
@@ -276,17 +282,25 @@ type fileEditor struct {
 	browse *widget.Button
 }
 
-func newFileEditor(k *kit, s slot) *fileEditor {
+func newFileEditor(k *kit, s slot) *fileEditor { return newPathEditor(k, s, false) }
+
+func newFolderEditor(k *kit, s slot) *fileEditor { return newPathEditor(k, s, true) }
+
+func newPathEditor(k *kit, s slot, folder bool) *fileEditor {
 	c := &fileEditor{Box: gapBox(widget.Row), entry: newText(k, s, false)}
 	c.entry.SetWidthChars(pathEntryChars, pathEntryChars)
 	c.entry.SetEllipsize(widget.EllipsizeMiddle)
-	c.entry.SetPlaceholder(locale.T().Get("settings-file-path-placeholder"))
+	placeholder, browse := "settings-file-path-placeholder", k.browseButton
+	if folder {
+		placeholder, browse = "settings-folder-path-placeholder", k.folderButton
+	}
+	c.entry.SetPlaceholder(locale.T().Get(placeholder))
 	edited := c.entry.OnChanged
 	c.entry.OnChanged = func(path string) {
 		edited(path)
 		c.entry.SetTooltip(path)
 	}
-	c.browse = k.browseButton(func(file string) {
+	c.browse = browse(func(file string) {
 		if s.set(file) == nil {
 			c.entry.badge.SetVisible(false)
 		}

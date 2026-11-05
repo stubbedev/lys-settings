@@ -47,6 +47,9 @@ func testKit(t *testing.T, configYAML string) *kit {
 	microphoneChoices = func() []recorder.DeviceChoice { return recorder.MicrophoneChoices(nil) }
 	cameraChoices = func() []recorder.DeviceChoice { return []recorder.DeviceChoice{{ID: "", Label: "Automatic"}} }
 	t.Cleanup(func() { microphoneChoices, cameraChoices = mics, cams })
+	lists := systemLists
+	systemLists = fixedLists()
+	t.Cleanup(func() { systemLists = lists })
 	return &kit{face: face, mono: face, store: store{svc}, invoke: func(fn func()) { fn() }}
 }
 
@@ -163,7 +166,7 @@ func TestEnumSelectLabelsAndWrites(t *testing.T) {
 func TestNumberWritesWholeNumbersAndClamps(t *testing.T) {
 	k := testKit(t, "")
 	meta, _ := config.Field("osd.duration")
-	c, err := autoEditor(k, pathSlot(k.store, "osd.duration"), meta)
+	c, err := autoEditor(k, pathSlot(k.store, "osd.duration"), "osd.duration", meta)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,19 +190,20 @@ func TestNumberWritesWholeNumbersAndClamps(t *testing.T) {
 
 func TestTextCommitsOnEnterWithTheDirtyBadge(t *testing.T) {
 	k := testKit(t, "")
-	meta, _ := config.Field("osd.monitor")
-	c, _ := autoEditor(k, pathSlot(k.store, "osd.monitor"), meta)
+	const path = "modules.weather.location"
+	meta, _ := config.Field(path)
+	c, _ := autoEditor(k, pathSlot(k.store, path), path, meta)
 	tx := c.(*text)
-	if tx.Text() != "primary" || tx.badge.Visible() {
+	if want, _ := k.store.value(path).(string); tx.Text() != want || tx.badge.Visible() {
 		t.Fatalf("initial %q badge %v", tx.Text(), tx.badge.Visible())
 	}
 	tx.SelectAll()
-	tx.Insert("DP-1")
-	if !tx.badge.Visible() || k.store.svc.Source("osd.monitor") != config.SourceDefault {
+	tx.Insert("Aarhus")
+	if !tx.badge.Visible() || k.store.svc.Source(path) != config.SourceDefault {
 		t.Fatal("typing did not mark the entry unsaved, or wrote early")
 	}
 	tx.KeyAction(widget.KeyEnter, 0)
-	if v := k.store.value("osd.monitor"); v != "DP-1" || tx.badge.Visible() {
+	if v := k.store.value(path); v != "Aarhus" || tx.badge.Visible() {
 		t.Errorf("after Enter value %v badge %v", v, tx.badge.Visible())
 	}
 	// A value the field refuses keeps the badge up and writes nothing.
@@ -246,7 +250,7 @@ func TestSliderCommitsPercentages(t *testing.T) {
 func TestFieldControlRefusesWhatItCannotEdit(t *testing.T) {
 	k := testKit(t, "")
 	meta, _ := config.Field("osd.presets")
-	if _, err := autoEditor(k, pathSlot(k.store, "osd.presets"), meta); err == nil {
+	if _, err := autoEditor(k, pathSlot(k.store, "osd.presets"), "osd.presets", meta); err == nil {
 		t.Error("a list got an auto editor")
 	}
 	defer func() {
@@ -593,6 +597,7 @@ type fakePickers struct {
 	anchor, content, focus widget.Widget
 	closed                 int
 	fileFn                 func(string)
+	folderFn               func(string)
 	fontIn                 string
 	fontMono               bool
 	fontFn                 func(string)
@@ -604,6 +609,8 @@ func (f *fakePickers) popover(anchor, content, focus widget.Widget) func() {
 }
 
 func (f *fakePickers) openFile(fn func(string)) { f.fileFn = fn }
+
+func (f *fakePickers) openFolder(fn func(string)) { f.folderFn = fn }
 
 func (f *fakePickers) font(family string, monospace bool, fn func(string)) {
 	f.fontIn, f.fontMono, f.fontFn = family, monospace, fn

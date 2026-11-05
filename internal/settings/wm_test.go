@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-ui/widget"
 
 	"github.com/stubbedev/lys-settings/internal/locale"
 	"github.com/stubbedev/lys-settings/internal/wmconfig"
@@ -20,9 +22,12 @@ const wmSchema = `{"type":"object","properties":{
 "gaps":{"type":"object","properties":{"inner":{"type":"integer","minimum":0,"default":8},"outer":{"oneOf":[{"type":"integer"},{"type":"array"}]}}},
 "tearing":{"type":"boolean","default":false},
 "binds":{"type":"array"},
-"decoration":{"type":"object","properties":{"active_opacity":{"type":"number","minimum":0,"maximum":1,"default":1}}},
-"input":{"type":"object","properties":{"touchpad":{"type":"object","properties":{"tap":{"type":"boolean"},"click_method":{"type":"string","enum":["none","clickfinger"]}}}}},
-"tabs":{"type":"object","properties":{"font":{"type":"string"}}}}}`
+"decoration":{"type":"object","properties":{"active_opacity":{"type":"number","minimum":0,"maximum":1,"default":1},"shadow":{"type":"object","properties":{"color":{"type":"string","format":"lys-wm-color","default":"#00000060"}}}}},
+"input":{"type":"object","properties":{"touchpad":{"type":"object","properties":{"tap":{"type":"boolean"},"click_method":{"type":"string","enum":["none","clickfinger"]}}},
+"keyboard":{"type":"object","properties":{"layout":{"type":"string","format":"lys-wm-xkb-layout"},"variant":{"type":"string","format":"lys-wm-xkb-variant"},"options":{"type":"string","format":"lys-wm-xkb-options"},"model":{"type":"string","format":"lys-wm-xkb-model"},"rules":{"type":"string","format":"lys-wm-xkb-rules"}}}}},
+"gpu":{"type":"string","format":"lys-wm-drm-device"},
+"palette":{"type":"object","additionalProperties":{"type":"string"}},
+"tabs":{"type":"object","properties":{"font":{"type":"string","format":"lys-wm-font-file"},"icon_theme":{"type":"string","format":"lys-wm-icon-theme"},"label":{"type":"string"}}}}}`
 
 const wmBuiltIn = "binds:\n  - {chord: SUPER + Q, action: kill}\n"
 
@@ -114,7 +119,12 @@ func TestWMRowsFollowTheSchemasTypes(t *testing.T) {
 		"decoration.active_opacity":   &number{},
 		"input.touchpad.tap":          &optionalEnum{},
 		"input.touchpad.click_method": &optionalEnum{},
-		"tabs.font":                   &text{},
+		"tabs.font":                   &choiceEditor{},
+		"tabs.icon_theme":             &choiceEditor{},
+		"tabs.label":                  &text{},
+		"gpu":                         &choiceEditor{},
+		"input.keyboard.layout":       &choiceEditor{},
+		"decoration.shadow.color":     &wmColorEditor{},
 	} {
 		c := fieldControl(k, w, wmField(path))
 		if fmt.Sprintf("%T", c) != fmt.Sprintf("%T", want) {
@@ -645,5 +655,96 @@ func TestAWMPageWhoseSchemaFailsSaysSoAndStillBuilds(t *testing.T) {
 	page := buildPage(k, wmPage("wm-test", "ld-monitor-symbolic"))
 	if page.Scroll == nil || len(page.rows) != 0 {
 		t.Fatalf("%+v", page)
+	}
+}
+
+func TestTheKeyboardLayoutsAreToggledInOrderAndTheVariantsFollowThem(t *testing.T) {
+	k, w, _, files := wmKit(t, "input:\n  keyboard:\n    layout: us\n")
+	layout := fieldControl(k, w, wmField("input.keyboard.layout")).(*choiceEditor)
+	p := openChoices(t, k, layout)
+	pickName(t, p, "us,dk")
+	if got := fileText(t, files.runtime); got != "input:\n  keyboard:\n    layout: us,dk\n" {
+		t.Fatalf("%q", got)
+	}
+	variant := fieldControl(k, w, wmField("input.keyboard.variant")).(*choiceEditor)
+	p = openChoices(t, k, variant)
+	if !slices.Equal(p.all, []string{"intl", ",nodeadkeys"}) {
+		t.Fatalf("offered %q", p.all)
+	}
+	pickName(t, p, ",nodeadkeys")
+	if got := w.value("input.keyboard.variant"); got != ",nodeadkeys" {
+		t.Fatalf("%v", got)
+	}
+	if variant.unknown.Visible() {
+		t.Fatal("a listed variant is unknown")
+	}
+	if err := w.slot("input.keyboard.variant").set("nodeadkeys"); err != nil {
+		t.Fatal(err)
+	}
+	variant.refresh()
+	if !variant.unknown.Visible() {
+		t.Fatal("a variant of another layout is not marked")
+	}
+	options := fieldControl(k, w, wmField("input.keyboard.options")).(*choiceEditor)
+	p = openChoices(t, k, options)
+	pickName(t, p, "caps:escape")
+	if got := w.value("input.keyboard.options"); got != "caps:escape" {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestTheTabFontIsAFontFileListedOrBrowsed(t *testing.T) {
+	k, w, _, _ := wmKit(t, "")
+	f := &fakePickers{}
+	k.pickers = f
+	c := fieldControl(k, w, wmField("tabs.font")).(*choiceEditor)
+	c.open.ClickAt(widget.Point{})
+	if !slices.Contains(c.picker.all, "/fonts/Inter.ttf") {
+		t.Fatalf("offered %q", c.picker.all)
+	}
+	c.browse.ClickAt(widget.Point{})
+	if f.fileFn == nil {
+		t.Fatal("no file chooser")
+	}
+	f.fileFn("/home/me/.fonts/Mine.ttf")
+	if got := w.value("tabs.font"); got != "/home/me/.fonts/Mine.ttf" {
+		t.Fatalf("%v", got)
+	}
+	if !c.unknown.Visible() {
+		t.Fatal("a browsed file outside the list is not marked")
+	}
+}
+
+func TestAWMColorTakesAHexOrAPaletteName(t *testing.T) {
+	k, w, _, _ := wmKit(t, "palette:\n  accent: '#ff0000'\n")
+	c := fieldControl(k, w, wmField("decoration.shadow.color")).(*wmColorEditor)
+	c.swatch.OnColorSet(render.RGBA(0, 255, 0, 255))
+	if got := w.value("decoration.shadow.color"); got != "#00ff00" {
+		t.Fatalf("%v", got)
+	}
+	p := openChoices(t, k, c.names)
+	if !slices.Equal(p.all, []string{"accent"}) {
+		t.Fatalf("offered %q", p.all)
+	}
+	pickName(t, p, "accent")
+	if got := w.value("decoration.shadow.color"); got != "accent" {
+		t.Fatalf("%v", got)
+	}
+	c.refresh()
+	if c.names.unknown.Visible() {
+		t.Fatal("a palette name lys-wm builds in would be marked unknown")
+	}
+}
+
+func TestAnUnlistedDRMDeviceIsKeptAndMarked(t *testing.T) {
+	k, w, _, _ := wmKit(t, "gpu: card7\n")
+	c := fieldControl(k, w, wmField("gpu")).(*choiceEditor)
+	if c.entry.Text() != "card7" || !c.unknown.Visible() {
+		t.Fatalf("%q %v", c.entry.Text(), c.unknown.Visible())
+	}
+	p := openChoices(t, k, c)
+	pickName(t, p, "card0")
+	if got := w.value("gpu"); got != "card0" || c.unknown.Visible() {
+		t.Fatalf("%v %v", got, c.unknown.Visible())
 	}
 }

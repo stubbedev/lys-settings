@@ -25,3 +25,19 @@ func TestEveryWMRowIsAKeyOfTheInstalledLysWM(t *testing.T) {
 		}
 	}
 }
+
+func TestNoWMRowFallsBackToPlainText(t *testing.T) {
+	if os.Getenv("LYS_SETTINGS_HEADLESS") == "" {
+		t.Skip("needs the dev shell's lys-wm; set by `just test`")
+	}
+	k := testKit(t, "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	w, err := openWM(k, wmconfig.Exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k.wm = w
+	if got := plainTextRows(t, k, w, allWMRows()); len(got) > 0 {
+		t.Fatalf("lys-wm rows on the plain text editor: %v", got)
+	}
+}

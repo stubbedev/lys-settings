@@ -165,7 +165,7 @@ func launcherPage(*config.Config) pageSpec {
 		{title: "settings-section-launcher-appearance", rows: []rowSpec{
 			field("launcher.show-icons"),
 			field("launcher.icon-theme"),
-			field("launcher.terminal"),
+			field("launcher.terminal", terminalRow),
 			field("launcher.display-names", stringMap),
 		}},
 		{title: "settings-section-launcher-history", rows: []rowSpec{

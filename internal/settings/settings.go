@@ -202,6 +202,18 @@ func (p windowPickers) openFile(fn func(path string)) {
 	}
 }
 
+func (p windowPickers) openFolder(fn func(path string)) {
+	if _, err := p.app.OpenFolderDialog(p.win, app.FileDialogConfig{
+		OnOpen: func(paths []string) {
+			if len(paths) > 0 {
+				fn(paths[0])
+			}
+		},
+	}); err != nil {
+		log.Printf("settings: folder chooser: %v", err)
+	}
+}
+
 // pickerPopoverConfig is an editor's popover: it opens from the editor
 // at lys-ui's popover gap, focus inside it taking the keys.
 func pickerPopoverConfig(anchor widget.Boundser, content, focus widget.Widget) app.PopoverConfig {

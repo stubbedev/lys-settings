@@ -45,6 +45,24 @@ in the desktop's language without a session or reading any config, and opens one
 and both ends use it. Without lys-settings installed the launcher logs why and offers
 no rows.
 
+## Editors
+
+Each row's editor comes from its field's type: lys-shell's `FieldMeta.Type` (`Monitor`,
+`IconTheme`, `Directory`, `Command`, `Secret`, `StrftimeFormat`, ...) and placeholders,
+or the `format` lys-wm's schema gives a key (`lys-wm-color`, `lys-wm-font-file`,
+`lys-wm-xkb-layout`, ...). A value the system can list offers the list, with the
+type's special values (`auto`, `primary`, the default) first: connected outputs from
+`/sys/class/drm`, icon and cursor themes from the icon directories, xkeyboard-config's
+registry, DRM cards under `/dev/dri`, network interfaces, hwmon sensors, the audio
+daemon's sources, `/etc/pam.d`, font files, programs on `PATH` and terminal
+emulators' desktop entries. The entry still takes any value, and a value the list
+lacks is kept and marked as not found. A format field offers its placeholders and
+previews the result with each one's sample.
+
+A text row whose value is neither listable nor structured is a deliberate choice: a
+test walks every page and fails on a plain text row that is not on its free-form
+list.
+
 ## Icons
 
 The icons the pages name are installed under `share/lys-settings/icons`, which the

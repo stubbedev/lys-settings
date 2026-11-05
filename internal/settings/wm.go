@@ -118,7 +118,7 @@ func (w *wmBackend) field(path string) (config.FieldMeta, bool) {
 	case wmconfig.Float:
 		meta.Kind = config.FieldFloat
 	case wmconfig.Text:
-		meta.Kind = config.FieldText
+		meta.Kind, meta.Type = config.FieldText, f.Format
 	case wmconfig.Enum:
 		meta.Kind = config.FieldEnum
 	case wmconfig.Composite:

@@ -418,6 +418,7 @@ const (
 // Field is one key of the schema.
 type Field struct {
 	Kind       Kind
+	Format     string
 	Variants   []string
 	Min, Max   float64
 	Default    any
@@ -473,7 +474,7 @@ func (s *Schema) Field(path []string) (Field, bool) {
 }
 
 func (n *schemaNode) field() (Field, bool) {
-	f := Field{Min: -unboundedInt, Max: unboundedInt}
+	f := Field{Min: -unboundedInt, Max: unboundedInt, Format: n.Format}
 	switch {
 	case len(n.OneOf) > 0 || n.Type == "object" || n.Type == "array":
 		return Field{Kind: Composite}, true

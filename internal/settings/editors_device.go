@@ -57,23 +57,28 @@ const microphoneQueryTimeout = 5 * time.Second
 // (dev.stubbe.lys.Audio1 ListSources), monitors dropped by their name; with
 // no daemon the list is the default alone (a seam for tests).
 var microphoneChoices = func() []recorder.DeviceChoice {
+	sources, _ := audioDaemonSources()
+	return recorder.MicrophoneChoices(sources)
+}
+
+func audioDaemonSources() ([]recorder.Source, bool) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		return recorder.MicrophoneChoices(nil)
+		return nil, false
 	}
 	defer func() { _ = conn.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), microphoneQueryTimeout)
 	defer cancel()
 	entries, err := pulse.NewClient(conn).ListSources(ctx)
 	if err != nil {
-		log.Printf("settings: microphones: %v", err)
-		return recorder.MicrophoneChoices(nil)
+		log.Printf("settings: audio sources: %v", err)
+		return nil, false
 	}
 	sources := make([]recorder.Source, len(entries))
 	for i, e := range entries {
 		sources[i] = recorder.Source{Name: e.Name, Description: e.Description, Monitor: strings.HasSuffix(e.Name, ".monitor")}
 	}
-	return recorder.MicrophoneChoices(sources)
+	return sources, true
 }
 
 // webcamDevice is webcam_device_select.

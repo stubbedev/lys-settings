@@ -21,7 +21,7 @@ type editorFunc func(k *kit, s slot, meta config.FieldMeta) control
 // autoEditor is the control a field's type calls for, the editor the
 // Rust page picks for it: toggle, enum_select, number_*, text, size,
 // color, and the optional (inherit) forms.
-func autoEditor(k *kit, s slot, meta config.FieldMeta) (control, error) {
+func autoEditor(k *kit, s slot, path string, meta config.FieldMeta) (control, error) {
 	switch {
 	case meta.Type == "Size":
 		return newSizeEditor(k, s, 1), nil
@@ -33,6 +33,9 @@ func autoEditor(k *kit, s slot, meta config.FieldMeta) (control, error) {
 		return newOptionalEnum(k, s, meta), nil
 	case meta.Optional && meta.Kind == config.FieldInt:
 		return newOptionalNumber(k, s, meta.Min, meta.Max, 1, 0, 0), nil
+	}
+	if c, ok := semanticEditor(k, s, path, meta); ok {
+		return c, nil
 	}
 	switch meta.Kind {
 	case config.FieldBool:
@@ -202,7 +205,7 @@ func fieldControl(k *kit, be backend, spec rowSpec) control {
 	if spec.editor != nil {
 		return spec.editor(k, be.slot(spec.path), meta)
 	}
-	c, err := autoEditor(k, be.slot(spec.path), meta)
+	c, err := autoEditor(k, be.slot(spec.path), spec.path, meta)
 	if err != nil {
 		log.Panicf("settings: %s: %v", spec.path, err)
 	}

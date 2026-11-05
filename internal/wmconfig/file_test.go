@@ -611,7 +611,7 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	"c":{"type":"string","enum":["x","y"]},
 	"d":{"type":"boolean","default":true},
 	"e":{"oneOf":[{"type":"integer"},{"type":"array"}]},
-	"f":{"type":"object","properties":{"g":{"type":"string"}}},
+	"f":{"type":"object","properties":{"g":{"type":"string"},"c":{"type":"string","format":"lys-wm-color"}}},
 	"h":{"type":"array"}}}`))
 	if err != nil {
 		t.Fatal(err)
@@ -639,8 +639,11 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	if f := field("e"); f.Kind != Composite {
 		t.Errorf("e: %+v", f)
 	}
-	if f := field("f", "g"); f.Kind != Text {
+	if f := field("f", "g"); f.Kind != Text || f.Format != "" {
 		t.Errorf("f.g: %+v", f)
+	}
+	if f := field("f", "c"); f.Kind != Text || f.Format != "lys-wm-color" {
+		t.Errorf("f.c: %+v", f)
 	}
 	if f := field("h"); f.Kind != Composite {
 		t.Errorf("h: %+v", f)
