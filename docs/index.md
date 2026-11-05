@@ -20,12 +20,12 @@ hero:
       link: https://github.com/stubbedev/lys-settings
 
 features:
-  - title: Your file stays yours
-    details: A lys-wm change replaces only the bytes of its value. Comments, blank lines and key order stay, and an edit that would change more than its key is refused.
+  - title: Your config stays yours
+    details: Every change is a runtime override above the config.yaml you declare, which is only ever read. A lys-wm override replaces only the bytes of its value, and an edit that would change more than its key is refused.
   - title: Checked before it is written
-    details: lys-wm's own parser checks every change before the file is replaced, and a running lys-wm reloads it after. A refused change leaves the file untouched and says why.
-  - title: Honest about Home Manager
-    details: A config that is a read-only link into the Nix store is named on the page, with where to change it, instead of failing silently or being replaced.
+    details: lys-wm's own parser checks every change before the override file is replaced, and a running lys-wm reloads it after. A refused change leaves the file untouched and says why.
+  - title: Works with Home Manager
+    details: A config that is a read-only link into the Nix store keeps working. Changes land as overrides you can reset per setting or all at once.
   - title: Tested on a real lys-wm
     details: The end-to-end test starts a headless lys-wm in a private runtime directory, changes its config through the app's code, reads the result back over IPC, and opens the real window on it.
 ---

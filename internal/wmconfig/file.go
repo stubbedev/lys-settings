@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,8 +73,7 @@ func Exec(ctx context.Context, argv ...string) ([]byte, error) {
 	return nil, &ToolError{Argv: argv, Exit: code, Stderr: strings.TrimSpace(stderr.String()), Err: err}
 }
 
-// ReadOnlyError is a config this program must not write, usually Home Manager's
-// link into the Nix store: its owner has to change the setting.
+// ReadOnlyError is an override file this program cannot write.
 type ReadOnlyError struct {
 	Path, Target string
 	Err          error
@@ -81,9 +81,9 @@ type ReadOnlyError struct {
 
 func (e *ReadOnlyError) Error() string {
 	if e.Path != e.Target {
-		return fmt.Sprintf("%s is a link to %s, which is read-only; if Home Manager or Nix writes it, change the setting there", e.Path, e.Target)
+		return fmt.Sprintf("%s is a link to %s, which is read-only; lys-wm settings cannot be changed until it is writable", e.Path, e.Target)
 	}
-	return e.Path + " is read-only"
+	return e.Path + " is read-only; lys-wm settings cannot be changed until it is writable"
 }
 
 func (e *ReadOnlyError) Unwrap() error { return e.Err }
@@ -112,23 +112,27 @@ func (e *ReloadError) Error() string {
 	return "the change was saved, but lys-wm did not reload it: " + e.Reason
 }
 
-// File is lys-wm's config file and the programs that speak for it.
+// File is lys-wm's config file, the runtime overrides this program writes over
+// it, and the programs that speak for them.
 type File struct {
-	path string
-	run  Runner
+	path    string
+	runtime string
+	run     Runner
 }
 
-// Open names the file lys-wm reads under this environment.
+// Open names the files lys-wm reads under this environment.
 func Open(getenv func(string) string, run Runner) (*File, error) {
 	dir, ok := xdg.Env(getenv).ConfigDir(compositor)
 	if !ok {
 		return nil, errors.New("wmconfig: neither XDG_CONFIG_HOME nor HOME is an absolute path")
 	}
-	return &File{path: filepath.Join(dir, "config.yaml"), run: run}, nil
+	return &File{path: filepath.Join(dir, "config.yaml"), runtime: filepath.Join(dir, "runtime.yaml"), run: run}, nil
 }
 
-// Path is the file's path, the link when it is one.
+// Path is the config file's path, the link when it is one.
 func (f *File) Path() string { return f.path }
+
+func (f *File) Runtime() string { return f.runtime }
 
 func (f *File) tool(argv ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), toolLimit)
@@ -136,8 +140,7 @@ func (f *File) tool(argv ...string) ([]byte, error) {
 	return f.run(ctx, argv...)
 }
 
-// BuiltIn is the config lys-wm runs without a file, which a new file has to
-// start from: a file replaces it whole.
+// BuiltIn is the config lys-wm runs without a config file.
 func (f *File) BuiltIn() ([]byte, error) {
 	out, err := f.tool(compositor, "--default-config")
 	if err != nil {
@@ -155,23 +158,33 @@ func (f *File) Schema() (*Schema, error) {
 	return ParseSchema(out)
 }
 
-// Read is the file's keys; false when there is no file.
-func (f *File) Read() (map[string]any, bool, error) {
-	data, err := os.ReadFile(f.path)
+// Read is the config file's keys; false when there is no file.
+func (f *File) Read() (map[string]any, bool, error) { return readTree(f.path) }
+
+func (f *File) Overrides() (map[string]any, error) {
+	tree, exists, err := readTree(f.runtime)
+	if !exists && err == nil {
+		tree = map[string]any{}
+	}
+	return tree, err
+}
+
+func readTree(path string) (map[string]any, bool, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // lys-wm's config and override files, as lys-wm names them
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("wmconfig: read %s: %w", f.path, err)
+		return nil, false, fmt.Errorf("wmconfig: read %s: %w", path, err)
 	}
 	tree, err := decodeTree(data)
 	if err != nil {
-		return nil, true, fmt.Errorf("%s: %w", f.path, err)
+		return nil, true, fmt.Errorf("%s: %w", path, err)
 	}
 	return tree, true, nil
 }
 
-// Writable says why the file cannot be changed, or nil.
+// Writable says why the override file cannot be changed, or nil.
 func (f *File) Writable() error {
 	_, err := f.target()
 	return err
@@ -184,17 +197,17 @@ type target struct {
 }
 
 func (f *File) target() (target, error) {
-	resolved := f.path
-	info, err := os.Lstat(f.path)
+	resolved := f.runtime
+	info, err := os.Lstat(f.runtime)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return target{path: f.path, perm: 0o644, made: true}, nil
+		return target{path: f.runtime, perm: 0o644, made: true}, nil
 	case err != nil:
-		return target{}, fmt.Errorf("wmconfig: look at %s: %w", f.path, err)
+		return target{}, fmt.Errorf("wmconfig: look at %s: %w", f.runtime, err)
 	}
 	if info.Mode()&fs.ModeSymlink != 0 {
-		if resolved, err = filepath.EvalSymlinks(f.path); err != nil {
-			return target{}, fmt.Errorf("wmconfig: %s is a link that does not resolve: %w", f.path, err)
+		if resolved, err = filepath.EvalSymlinks(f.runtime); err != nil {
+			return target{}, fmt.Errorf("wmconfig: %s is a link that does not resolve: %w", f.runtime, err)
 		}
 		if info, err = os.Stat(resolved); err != nil {
 			return target{}, fmt.Errorf("wmconfig: look at %s: %w", resolved, err)
@@ -204,14 +217,14 @@ func (f *File) target() (target, error) {
 		return target{}, fmt.Errorf("wmconfig: %s is not a regular file", resolved)
 	}
 	if info.Mode().Perm()&0o200 == 0 {
-		return target{}, &ReadOnlyError{Path: f.path, Target: resolved, Err: fs.ErrPermission}
+		return target{}, &ReadOnlyError{Path: f.runtime, Target: resolved, Err: fs.ErrPermission}
 	}
 	return target{path: resolved, perm: info.Mode().Perm()}, nil
 }
 
-// Apply makes the edits in one write after lys-wm accepted the result, and has
-// a running lys-wm reload it. A refused or impossible change leaves the file as
-// it was.
+// Apply makes the edits to the override file in one write after lys-wm
+// accepted the result, and has a running lys-wm reload it. A refused or
+// impossible change leaves the file as it was; the config file is only read.
 func (f *File) Apply(edits []Edit) (Reload, error) {
 	for range maxAttempts {
 		reload, retry, err := f.attempt(edits)
@@ -219,7 +232,23 @@ func (f *File) Apply(edits []Edit) (Reload, error) {
 			return reload, err
 		}
 	}
-	return Unchanged, fmt.Errorf("wmconfig: %s keeps changing; try again", f.path)
+	return Unchanged, fmt.Errorf("wmconfig: %s keeps changing; try again", f.runtime)
+}
+
+func (f *File) ResetAll() (Reload, error) {
+	over, err := f.Overrides()
+	if err != nil {
+		return Unchanged, err
+	}
+	return f.Apply(ResetEdits(over))
+}
+
+func ResetEdits(over map[string]any) []Edit {
+	edits := make([]Edit, 0, len(over))
+	for _, key := range slices.Sorted(maps.Keys(over)) {
+		edits = append(edits, Edit{Path: []string{key}, Unset: true})
+	}
+	return edits
 }
 
 func (f *File) attempt(edits []Edit) (Reload, bool, error) {
@@ -229,7 +258,7 @@ func (f *File) attempt(edits []Edit) (Reload, bool, error) {
 	}
 	current, err := f.current(t)
 	if err != nil {
-		return Unchanged, false, err
+		return Unchanged, existenceChanged(err), err
 	}
 	next := current
 	for _, e := range edits {
@@ -237,37 +266,41 @@ func (f *File) attempt(edits []Edit) (Reload, bool, error) {
 			return Unchanged, false, err
 		}
 	}
-	if !t.made && bytes.Equal(next, current) {
+	if bytes.Equal(next, current) {
 		return Unchanged, false, nil
 	}
 	if err := f.check(t, next); err != nil {
 		return Unchanged, false, err
 	}
-	if !t.made {
-		now, err := os.ReadFile(t.path)
-		if err != nil {
-			return Unchanged, false, fmt.Errorf("wmconfig: read %s: %w", t.path, err)
-		}
-		if !bytes.Equal(now, current) {
-			return Unchanged, true, nil
-		}
+	now, err := f.current(t)
+	if existenceChanged(err) || err == nil && !bytes.Equal(now, current) {
+		return Unchanged, true, nil
+	}
+	if err != nil {
+		return Unchanged, false, err
 	}
 	if err := atomicfile.WriteFile(t.path, next, t.perm); err != nil {
-		return Unchanged, false, readOnly(f.path, t.path, fmt.Errorf("wmconfig: write %s: %w", t.path, err))
+		return Unchanged, false, readOnly(f.runtime, t.path, fmt.Errorf("wmconfig: write %s: %w", t.path, err))
 	}
 	reload, err := f.reload()
 	return reload, false, err
 }
 
 func (f *File) current(t target) ([]byte, error) {
-	if t.made {
-		return f.BuiltIn()
-	}
 	data, err := os.ReadFile(t.path)
-	if err != nil {
-		return nil, readOnly(f.path, t.path, fmt.Errorf("wmconfig: read %s: %w", t.path, err))
+	switch {
+	case t.made && errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case t.made && err == nil:
+		return nil, fs.ErrExist
+	case err != nil:
+		return nil, readOnly(f.runtime, t.path, fmt.Errorf("wmconfig: read %s: %w", t.path, err))
 	}
 	return data, nil
+}
+
+func existenceChanged(err error) bool {
+	return errors.Is(err, fs.ErrExist) || errors.Is(err, fs.ErrNotExist)
 }
 
 func readOnly(link, path string, err error) error {
@@ -280,24 +313,28 @@ func readOnly(link, path string, err error) error {
 func (f *File) check(t target, data []byte) error {
 	dir := filepath.Dir(t.path)
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // the user's own config directory, as lys-wm documents it
-		return readOnly(f.path, t.path, fmt.Errorf("wmconfig: make %s: %w", dir, err))
+		return readOnly(f.runtime, t.path, fmt.Errorf("wmconfig: make %s: %w", dir, err))
 	}
-	tmp, err := os.CreateTemp(dir, ".config.yaml.check-*")
+	tmp, err := os.CreateTemp(dir, ".runtime.yaml.check-*")
 	if err != nil {
-		return readOnly(f.path, t.path, fmt.Errorf("wmconfig: write beside %s: %w", t.path, err))
+		return readOnly(f.runtime, t.path, fmt.Errorf("wmconfig: write beside %s: %w", t.path, err))
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
 	_, err = tmp.Write(data)
 	if err = errors.Join(err, tmp.Close()); err != nil {
 		return fmt.Errorf("wmconfig: write %s: %w", tmp.Name(), err)
 	}
-	_, err = f.tool(compositor, "--check-config", "--config", tmp.Name())
+	argv := []string{compositor, "--check-config", "--runtime", tmp.Name()}
+	if _, err := os.Stat(f.path); err == nil {
+		argv = append(argv, "--config", f.path)
+	}
+	_, err = f.tool(argv...)
 	if err == nil {
 		return nil
 	}
 	var tool *ToolError
 	if errors.As(err, &tool) && tool.Exit > 0 {
-		return &RejectedError{Reason: strings.ReplaceAll(tool.Stderr, tmp.Name(), t.path)}
+		return &RejectedError{Reason: strings.ReplaceAll(tool.Stderr, tmp.Name(), f.runtime)}
 	}
 	return fmt.Errorf("wmconfig: have lys-wm check the change: %w", err)
 }
@@ -327,6 +364,39 @@ func Lookup(tree map[string]any, path []string) (any, bool) {
 		}
 	}
 	return node, true
+}
+
+func Merge(base, over map[string]any) map[string]any {
+	out := maps.Clone(base)
+	if out == nil {
+		out = map[string]any{}
+	}
+	for key, v := range over {
+		b, bok := out[key].(map[string]any)
+		o, ook := v.(map[string]any)
+		if bok && ook {
+			out[key] = Merge(b, o)
+			continue
+		}
+		out[key] = v
+	}
+	return out
+}
+
+func Overridden(over map[string]any, path []string) bool {
+	node := over
+	for i, key := range path {
+		v, ok := node[key]
+		if !ok {
+			return false
+		}
+		child, isMap := v.(map[string]any)
+		if i == len(path)-1 || !isMap {
+			return true
+		}
+		node = child
+	}
+	return false
 }
 
 // Tree parses a config's bytes into its keys.

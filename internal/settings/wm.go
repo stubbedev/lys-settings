@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -22,18 +23,20 @@ const (
 	wmToggleOff  = "off"
 )
 
-// wmBackend is lys-wm's config as the rows see it: the file's keys, the edits
-// still on their way to it, and how the last change went. Edits leave the loop
-// one batch at a time, since each is checked by lys-wm and reloaded.
+// wmBackend is lys-wm's config as the rows see it: the config file's keys, the
+// runtime overrides over them, the edits still on their way to the overrides,
+// and how the last change went. Edits leave the loop one batch at a time, since
+// each is checked by lys-wm and reloaded.
 type wmBackend struct {
-	k       *kit
-	file    *wmconfig.File
-	schema  *wmconfig.Schema
-	builtIn map[string]any
-	tree    map[string]any
-	exists  bool
-	pending []wmconfig.Edit
-	busy    bool
+	k         *kit
+	file      *wmconfig.File
+	schema    *wmconfig.Schema
+	builtIn   map[string]any
+	tree      map[string]any
+	exists    bool
+	overrides map[string]any
+	pending   []wmconfig.Edit
+	busy      bool
 	// notice is what the status line says; class colors it.
 	notice, class string
 }
@@ -81,7 +84,12 @@ func (w *wmBackend) reread() {
 		w.show(err.Error(), "error")
 		return
 	}
-	w.tree, w.exists = tree, exists
+	overrides, err := w.file.Overrides()
+	if err != nil {
+		w.show(err.Error(), "error")
+		return
+	}
+	w.tree, w.exists, w.overrides = tree, exists, overrides
 	if err := w.file.Writable(); err != nil {
 		w.show(err.Error(), "warning")
 	}
@@ -119,8 +127,8 @@ func (w *wmBackend) field(path string) (config.FieldMeta, bool) {
 	return meta, true
 }
 
-// defaultOf is what the key means when the file does not say: the built-in
-// config's value, else the schema's default.
+// defaultOf is what the key means when no file says: the built-in config's
+// value, else the schema's default.
 func (w *wmBackend) defaultOf(path string) (any, bool) {
 	if v, ok := wmconfig.Lookup(w.builtIn, wmPath(path)); ok {
 		return v, true
@@ -131,24 +139,29 @@ func (w *wmBackend) defaultOf(path string) (any, bool) {
 	return nil, false
 }
 
+func (w *wmBackend) base() map[string]any {
+	if w.exists {
+		return w.tree
+	}
+	return w.builtIn
+}
+
 func (w *wmBackend) value(path string) any {
 	keys := wmPath(path)
+	tree := wmconfig.Merge(w.base(), w.overrides)
 	for _, e := range slices.Backward(w.pending) {
 		if slices.Equal(e.Path, keys) {
-			if e.Unset {
-				return w.fallback(path)
+			if !e.Unset {
+				return w.normal(path, e.Value)
 			}
-			return w.normal(path, e.Value)
+			tree = w.base()
+			break
 		}
 	}
-	if w.exists {
-		if v, ok := wmconfig.Lookup(w.tree, keys); ok {
-			return w.normal(path, v)
-		}
-		return w.fallback(path)
+	if v, ok := wmconfig.Lookup(tree, keys); ok {
+		return w.normal(path, v)
 	}
-	d, _ := w.defaultOf(path)
-	return w.normal(path, d)
+	return w.fallback(path)
 }
 
 func (w *wmBackend) fallback(path string) any {
@@ -196,31 +209,63 @@ func wmToggleSlot(raw slot) slot {
 	}
 }
 
-// reset gives the key back what lys-wm would use: the built-in config's value
-// for a key it sets, since leaving out `binds` means no binds, else no key.
+// reset drops the key's override, so the config file's value, else the
+// built-in one, applies again.
 func (w *wmBackend) reset(path string) {
-	e := wmconfig.Edit{Path: wmPath(path), Unset: true}
-	if v, ok := wmconfig.Lookup(w.builtIn, e.Path); ok {
-		e = wmconfig.Edit{Path: e.Path, Value: v}
-	}
-	if err := w.edit(e); err != nil {
+	if err := w.edit(wmconfig.Edit{Path: wmPath(path), Unset: true}); err != nil {
 		log.Printf("settings: reset %s: %v", path, err)
 	}
 }
 
-func (w *wmBackend) source(path string) sourceInfo {
-	if !w.exists {
-		return sourceInfo{}
+func (k *kit) resetAll() {
+	k.store.resetAll()
+	if k.wm != nil {
+		k.wm.resetAll()
+		return
 	}
-	v, inFile := wmconfig.Lookup(w.tree, wmPath(path))
-	if !inFile {
+	if !wmconfig.Installed() {
+		return
+	}
+	file, err := wmconfig.Open(os.Getenv, wmconfig.Exec)
+	if err != nil {
+		log.Printf("settings: reset-all: %v", err)
+		return
+	}
+	async(k, func() error {
+		_, err := file.ResetAll()
+		return err
+	}, func(err error) {
+		if err != nil {
+			log.Printf("settings: reset-all: %v", err)
+		}
+	})
+}
+
+func (w *wmBackend) resetAll() {
+	keys := make(map[string]any, len(w.overrides)+len(w.pending))
+	maps.Copy(keys, w.overrides)
+	for _, e := range w.pending {
+		keys[e.Path[0]] = nil
+	}
+	w.pending = wmconfig.ResetEdits(keys)
+	w.flush()
+}
+
+func (w *wmBackend) source(path string) sourceInfo {
+	keys := wmPath(path)
+	v, inConfig := wmconfig.Lookup(w.tree, keys)
+	inConfig = inConfig && w.exists
+	if wmconfig.Overridden(w.overrides, keys) {
+		return runtimeSource(inConfig)
+	}
+	if !inConfig {
 		return sourceInfo{}
 	}
 	if d, ok := w.defaultOf(path); ok && reflect.DeepEqual(w.normal(path, v), w.normal(path, d)) {
 		return sourceInfo{}
 	}
 	t := locale.T()
-	return sourceInfo{label: t.Get("settings-source-config"), tooltip: t.Attr("wm-source-file", "description"), class: "info", badge: true, reset: true}
+	return sourceInfo{label: t.Get("settings-source-config"), tooltip: t.Attr("wm-source-file", "description"), class: "info", badge: true}
 }
 
 // edit queues a change; an edit of the same key still queued is replaced, so

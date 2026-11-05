@@ -15,13 +15,13 @@
 </p>
 
 One window for the desktop's settings. Changes to
-[lys-shell](https://github.com/stubbedev/lys-shell) land as runtime overrides, as
-they always have. Changes to [lys-wm](https://github.com/stubbedev/lys-wm) edit
-`~/.config/lys-wm/config.yaml` in place, keeping your comments and layout: lys-wm
-checks the result before it is written, and reloads it after.
+[lys-shell](https://github.com/stubbedev/lys-shell) and to
+[lys-wm](https://github.com/stubbedev/lys-wm) land as runtime overrides in each
+project's `runtime.yaml`, above the `config.yaml` you declare, which the app never
+writes. lys-wm checks each change before it is written, and reloads it after.
 
-A config Home Manager writes is a read-only link, which the app says instead of
-changing: change that setting in your Nix configuration.
+A config Home Manager links into the Nix store therefore stays editable from the app,
+and **Reset** puts any setting back to what your config declares.
 
 ## Install
 

@@ -40,8 +40,9 @@ func (w *fakeWM) run(_ context.Context, argv ...string) ([]byte, error) {
 		return []byte(wmBuiltIn), nil
 	case "lys-wm --check-config":
 		w.checks++
+		candidate := argv[slices.Index(argv, "--runtime")+1]
 		if w.reject != "" {
-			return nil, &wmconfig.ToolError{Argv: argv, Exit: 1, Stderr: argv[3] + ":3: " + w.reject, Err: errors.New("exit status 1")}
+			return nil, &wmconfig.ToolError{Argv: argv, Exit: 1, Stderr: candidate + ":3: " + w.reject, Err: errors.New("exit status 1")}
 		}
 		return nil, nil
 	case "lys-wmctl reload":
@@ -51,19 +52,29 @@ func (w *fakeWM) run(_ context.Context, argv ...string) ([]byte, error) {
 	return nil, fmt.Errorf("unexpected program %q", argv)
 }
 
-func wmKit(t *testing.T, content string) (*kit, *wmBackend, *fakeWM, string) {
+type wmFiles struct{ config, runtime string }
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func wmKitWith(t *testing.T, config, runtime string) (*kit, *wmBackend, *fakeWM, wmFiles) {
 	t.Helper()
 	k := testKit(t, "")
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	path := filepath.Join(dir, "lys-wm", "config.yaml")
-	if content != "" {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	files := wmFiles{filepath.Join(dir, "lys-wm", "config.yaml"), filepath.Join(dir, "lys-wm", "runtime.yaml")}
+	if config != "" {
+		writeFile(t, files.config, config)
+	}
+	if runtime != "" {
+		writeFile(t, files.runtime, runtime)
 	}
 	fake := &fakeWM{}
 	w, err := openWM(k, fake.run)
@@ -71,7 +82,12 @@ func wmKit(t *testing.T, content string) (*kit, *wmBackend, *fakeWM, string) {
 		t.Fatal(err)
 	}
 	k.wm = w
-	return k, w, fake, path
+	return k, w, fake, files
+}
+
+func wmKit(t *testing.T, config string) (*kit, *wmBackend, *fakeWM, wmFiles) {
+	t.Helper()
+	return wmKitWith(t, config, "")
 }
 
 func fileText(t *testing.T, path string) string {
@@ -81,6 +97,13 @@ func fileText(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func noFile(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("%s: %v", path, err)
+	}
 }
 
 func TestWMRowsFollowTheSchemasTypes(t *testing.T) {
@@ -122,19 +145,25 @@ func TestAWMRowNamingNoKeyIsAPageBug(t *testing.T) {
 	fieldControl(k, w, wmField("no.such.key"))
 }
 
-func TestAToggleWritesTheFileKeepingTheRestAndReloads(t *testing.T) {
-	const before = "# mine\nunknown: 1\ntearing: false # why\n"
-	k, w, fake, path := wmKit(t, before)
+func TestAToggleWritesAnOverrideLeavingTheConfigAndReloads(t *testing.T) {
+	const declared = "# mine\nunknown: 1\ntearing: false # why\n"
+	k, w, fake, files := wmKit(t, declared)
 	c := fieldControl(k, w, wmField("tearing")).(*toggle)
 	c.OnChanged(true)
-	if got, want := fileText(t, path), "# mine\nunknown: 1\ntearing: true # why\n"; got != want {
+	if got := fileText(t, files.runtime); got != "tearing: true\n" {
 		t.Fatalf("%q", got)
+	}
+	if got := fileText(t, files.config); got != declared {
+		t.Fatalf("the config changed: %q", got)
 	}
 	if fake.reloads != 1 || fake.checks != 1 {
 		t.Fatalf("%d reloads, %d checks", fake.reloads, fake.checks)
 	}
 	if got := w.value("tearing"); got != true {
 		t.Fatalf("%v", got)
+	}
+	if src := w.source("tearing"); src.label != locale.T().Get("settings-source-override") || !src.reset {
+		t.Fatalf("an override of a config key: %+v", src)
 	}
 	if w.notice != "" {
 		t.Fatalf("a good change says %q", w.notice)
@@ -143,12 +172,12 @@ func TestAToggleWritesTheFileKeepingTheRestAndReloads(t *testing.T) {
 
 func TestARefusedChangeShowsWhyAndTheRowGoesBack(t *testing.T) {
 	const before = "gaps:\n  inner: 3\n"
-	k, w, fake, path := wmKit(t, before)
+	k, w, fake, files := wmKitWith(t, "", before)
 	fake.reject = "gaps.inner: nope"
 	row := newSettingRow(k, w, wmField("gaps.inner"), fieldControl(k, w, wmField("gaps.inner")))
 	n := row.ctl.(*number)
 	n.OnValueChanged(9)
-	if got := fileText(t, path); got != before {
+	if got := fileText(t, files.runtime); got != before {
 		t.Fatalf("%q", got)
 	}
 	if fake.reloads != 0 {
@@ -157,7 +186,7 @@ func TestARefusedChangeShowsWhyAndTheRowGoesBack(t *testing.T) {
 	if got := w.value("gaps.inner"); got != int64(3) {
 		t.Fatalf("the row holds a value the file does not: %v", got)
 	}
-	if !strings.Contains(w.notice, "gaps.inner: nope") || !strings.Contains(w.notice, path) || w.class != "error" {
+	if !strings.Contains(w.notice, "gaps.inner: nope") || !strings.Contains(w.notice, files.runtime) || w.class != "error" {
 		t.Fatalf("%q %q", w.notice, w.class)
 	}
 	fake.reject = ""
@@ -165,12 +194,12 @@ func TestARefusedChangeShowsWhyAndTheRowGoesBack(t *testing.T) {
 	if w.notice != "" {
 		t.Fatalf("a later good change leaves %q", w.notice)
 	}
-	if got := fileText(t, path); got != "gaps:\n  inner: 4\n" {
+	if got := fileText(t, files.runtime); got != "gaps:\n  inner: 4\n" {
 		t.Fatalf("%q", got)
 	}
 }
 
-func TestAHomeManagerLinkShowsOnThePageAndChangesNothing(t *testing.T) {
+func TestAHomeManagerConfigTakesChangesAsOverrides(t *testing.T) {
 	k := testKit(t, "")
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
@@ -194,65 +223,132 @@ func TestAHomeManagerLinkShowsOnThePageAndChangesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	k.wm = w
-	for _, want := range []string{path, store, "Home Manager"} {
-		if !strings.Contains(w.notice, want) {
-			t.Errorf("before any change, %q does not say %q", w.notice, want)
-		}
-	}
-	if w.class != "warning" {
-		t.Errorf("class %q", w.class)
+	if w.notice != "" {
+		t.Fatalf("a read-only config warns: %q", w.notice)
 	}
 	c := fieldControl(k, w, wmField("tearing")).(*toggle)
 	c.OnChanged(true)
-	if !strings.Contains(w.notice, "Home Manager") || w.class != "error" && w.class != "warning" {
+	if w.notice != "" || fake.checks != 1 || fake.reloads != 1 {
+		t.Fatalf("%q, %d checks, %d reloads", w.notice, fake.checks, fake.reloads)
+	}
+	if got := fileText(t, filepath.Join(dir, "lys-wm", "runtime.yaml")); got != "tearing: true\n" {
+		t.Fatalf("%q", got)
+	}
+	if fileText(t, store) != "tearing: false\n" {
+		t.Fatal("touched a read-only config")
+	}
+	if target, err := os.Readlink(path); err != nil || target != store {
+		t.Fatalf("the link moved: %q, %v", target, err)
+	}
+	if got := w.value("tearing"); got != true {
+		t.Fatalf("%v", got)
+	}
+	w.reset("tearing")
+	if got := w.value("tearing"); got != false {
+		t.Fatalf("a reset falls back to the declared config: %v", got)
+	}
+}
+
+func TestAReadOnlyOverrideFileShowsOnThePage(t *testing.T) {
+	k := testKit(t, "")
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	runtime := filepath.Join(dir, "lys-wm", "runtime.yaml")
+	writeFile(t, runtime, "tearing: false\n")
+	if err := os.Chmod(runtime, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeWM{}
+	w, err := openWM(k, fake.run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k.wm = w
+	if !strings.Contains(w.notice, runtime) || w.class != "warning" {
 		t.Fatalf("%q %q", w.notice, w.class)
 	}
-	if fileText(t, store) != "tearing: false\n" || fake.checks != 0 || fake.reloads != 0 {
-		t.Fatal("touched a read-only config")
+	c := fieldControl(k, w, wmField("tearing")).(*toggle)
+	c.OnChanged(true)
+	if !strings.Contains(w.notice, "read-only") || fake.checks != 0 || fake.reloads != 0 {
+		t.Fatalf("%q, %d checks, %d reloads", w.notice, fake.checks, fake.reloads)
 	}
 	if got := w.value("tearing"); got != false {
 		t.Fatalf("%v", got)
 	}
-	status := newWMStatus(k, w)
-	if !status.Visible() {
+	if !newWMStatus(k, w).Visible() {
 		t.Fatal("the page does not show it")
 	}
 }
 
-func TestResettingAKeyTheBuiltInConfigSetsRestoresIt(t *testing.T) {
-	_, w, _, path := wmKit(t, "binds:\n  - {chord: SUPER + X, action: exit}\ntearing: true\n")
+func TestResettingAnOverrideFallsBackToTheConfigThenTheBuiltIn(t *testing.T) {
+	_, w, _, files := wmKitWith(t, "gaps:\n  inner: 3\n", "gaps:\n  inner: 5\ntearing: true\n")
+	if got := w.value("gaps.inner"); got != int64(5) {
+		t.Fatalf("%v", got)
+	}
+	if src := w.source("gaps.inner"); !src.reset || src.label != locale.T().Get("settings-source-override") {
+		t.Fatalf("%+v", src)
+	}
+	w.reset("gaps.inner")
+	if got := fileText(t, files.runtime); got != "tearing: true\n" {
+		t.Fatalf("%q", got)
+	}
+	if got := w.value("gaps.inner"); got != int64(3) {
+		t.Fatalf("%v", got)
+	}
+	if src := w.source("gaps.inner"); !src.badge || src.reset || src.label != locale.T().Get("settings-source-config") {
+		t.Fatalf("a config value: %+v", src)
+	}
+	if src := w.source("tearing"); src.label != locale.T().Get("settings-source-custom") || !src.reset {
+		t.Fatalf("an override of no config key: %+v", src)
+	}
+}
+
+func TestResettingAnOverrideWithoutAConfigRestoresTheBuiltIn(t *testing.T) {
+	_, w, _, files := wmKitWith(t, "", "binds:\n  - {chord: SUPER + X, action: exit}\n")
 	if src := w.source("binds"); !src.reset || !src.badge {
-		t.Fatalf("a changed key: %+v", src)
+		t.Fatalf("an override: %+v", src)
 	}
 	w.reset("binds")
-	got := fileText(t, path)
-	if !strings.Contains(got, "SUPER + Q") || strings.Contains(got, "SUPER + X") {
+	if got := fileText(t, files.runtime); strings.Contains(got, "binds") {
 		t.Fatalf("%q", got)
+	}
+	binds, ok := w.value("binds").([]any)
+	if !ok || len(binds) != 1 || !strings.Contains(fmt.Sprint(binds), "SUPER + Q") {
+		t.Fatalf("%#v", w.value("binds"))
 	}
 	if src := w.source("binds"); src.badge || src.reset {
 		t.Fatalf("back at the default: %+v", src)
 	}
+	noFile(t, files.config)
 }
 
-func TestResettingAnyOtherKeyRemovesIt(t *testing.T) {
-	_, w, _, path := wmKit(t, "binds: []\ngaps:\n  inner: 3\ntearing: true\n")
-	if src := w.source("gaps.inner"); !src.reset {
-		t.Fatalf("%+v", src)
+func TestResettingAKeyWithNoOverrideDoesNothing(t *testing.T) {
+	_, w, fake, files := wmKit(t, "gaps:\n  inner: 3\n")
+	if src := w.source("gaps.inner"); src.reset {
+		t.Fatalf("a config value cannot be reset here: %+v", src)
 	}
 	w.reset("gaps.inner")
-	if got := fileText(t, path); got != "binds: []\ntearing: true\n" {
-		t.Fatalf("%q", got)
+	if fake.checks != 0 || fake.reloads != 0 {
+		t.Fatalf("%d checks, %d reloads", fake.checks, fake.reloads)
 	}
+	noFile(t, files.runtime)
+	if got := w.value("gaps.inner"); got != int64(3) {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestANullOverrideClearsTheMappingBelowIt(t *testing.T) {
+	_, w, _, _ := wmKitWith(t, "gaps:\n  inner: 3\n", "gaps:\n")
 	if got := w.value("gaps.inner"); got != int64(8) {
 		t.Fatalf("%v", got)
 	}
-	if src := w.source("gaps.inner"); src.badge || src.reset {
+	if src := w.source("gaps.inner"); !src.reset {
 		t.Fatalf("%+v", src)
 	}
 }
 
-func TestANewFileKeepsTheBuiltInBinds(t *testing.T) {
-	k, w, _, path := wmKit(t, "")
+func TestWithoutAConfigAChangeWritesOnlyThatKeyAndKeepsTheBuiltInBinds(t *testing.T) {
+	k, w, _, files := wmKit(t, "")
 	if src := w.source("tearing"); src.badge || src.reset {
 		t.Fatalf("no file: %+v", src)
 	}
@@ -262,9 +358,12 @@ func TestANewFileKeepsTheBuiltInBinds(t *testing.T) {
 	}
 	c := fieldControl(k, w, wmField("tearing")).(*toggle)
 	c.OnChanged(true)
-	got := fileText(t, path)
-	if !strings.Contains(got, "SUPER + Q") || !strings.Contains(got, "tearing: true") {
+	if got := fileText(t, files.runtime); got != "tearing: true\n" {
 		t.Fatalf("%q", got)
+	}
+	noFile(t, files.config)
+	if binds, ok := w.value("binds").([]any); !ok || len(binds) != 1 {
+		t.Fatalf("an override lost the built-in binds: %#v", w.value("binds"))
 	}
 }
 
@@ -276,13 +375,13 @@ func TestAKeyAFileLeavesOutIsNotTheBuiltInConfigs(t *testing.T) {
 }
 
 func TestAnOptionalToggleWritesABoolAndUnsets(t *testing.T) {
-	k, w, _, path := wmKit(t, "binds: []\n")
+	k, w, _, files := wmKit(t, "binds: []\n")
 	c := fieldControl(k, w, wmField("input.touchpad.tap")).(*optionalEnum)
 	if c.Selected() != 0 {
 		t.Fatalf("unset shows %d", c.Selected())
 	}
 	c.OnSelect(1)
-	if got := fileText(t, path); !strings.Contains(got, "tap: true") {
+	if got := fileText(t, files.runtime); !strings.Contains(got, "tap: true") {
 		t.Fatalf("%q", got)
 	}
 	if got := w.value("input.touchpad.tap"); got != true {
@@ -293,31 +392,35 @@ func TestAnOptionalToggleWritesABoolAndUnsets(t *testing.T) {
 		t.Fatalf("on shows %d", c.Selected())
 	}
 	c.OnSelect(2)
-	if got := fileText(t, path); !strings.Contains(got, "tap: false") {
+	if got := fileText(t, files.runtime); !strings.Contains(got, "tap: false") {
 		t.Fatalf("%q", got)
 	}
 	c.OnSelect(0)
-	if got := fileText(t, path); strings.Contains(got, "tap") || strings.Contains(got, "touchpad") {
+	if got := fileText(t, files.runtime); strings.Contains(got, "tap") || strings.Contains(got, "touchpad") {
 		t.Fatalf("%q", got)
 	}
 }
 
 func TestAYAMLRowAppliesAWholeValue(t *testing.T) {
-	k, w, _, path := wmKit(t, "# keep\nbinds:\n  - {chord: SUPER + Q, action: kill}\ntearing: true\n")
+	const declared = "# keep\nbinds:\n  - {chord: SUPER + Q, action: kill}\ntearing: true\n"
+	k, w, _, files := wmKit(t, declared)
 	c := fieldControl(k, w, wmYAML("binds", 4)).(*yamlEditor)
 	if !strings.Contains(c.area.Text(), "SUPER + Q") {
 		t.Fatalf("shows %q", c.area.Text())
 	}
 	c.area.SetText("binds:\n  - chord: SUPER + X\n    action: exit\n")
 	c.apply()
-	got := fileText(t, path)
-	if !strings.Contains(got, "SUPER + X") || strings.Contains(got, "SUPER + Q") || !strings.HasPrefix(got, "# keep\n") || !strings.Contains(got, "tearing: true") {
+	got := fileText(t, files.runtime)
+	if !strings.Contains(got, "SUPER + X") || strings.Contains(got, "SUPER + Q") || strings.Contains(got, "tearing") {
 		t.Fatalf("%q", got)
+	}
+	if fileText(t, files.config) != declared {
+		t.Fatal("the config changed")
 	}
 }
 
 func TestChangesMadeWhileOneIsOnItsWayLandAsOneLatest(t *testing.T) {
-	k, w, fake, path := wmKit(t, "gaps:\n  inner: 1\n")
+	k, w, fake, files := wmKitWith(t, "", "gaps:\n  inner: 1\n")
 	var queued []func()
 	k.background = func(fn func()) { queued = append(queued, fn) }
 	k.invoke = func(fn func()) { fn() }
@@ -340,7 +443,7 @@ func TestChangesMadeWhileOneIsOnItsWayLandAsOneLatest(t *testing.T) {
 		queued = queued[1:]
 		fn()
 	}
-	if got := fileText(t, path); got != "gaps:\n  inner: 9\n" {
+	if got := fileText(t, files.runtime); got != "gaps:\n  inner: 9\n" {
 		t.Fatalf("%q", got)
 	}
 	if fake.checks > 2 {
@@ -349,15 +452,80 @@ func TestChangesMadeWhileOneIsOnItsWayLandAsOneLatest(t *testing.T) {
 }
 
 func TestAChangeBesideTheAppIsRead(t *testing.T) {
-	k, w, _, path := wmKit(t, "gaps:\n  inner: 1\n")
-	if err := os.WriteFile(path, []byte("gaps:\n  inner: 7\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	k, w, _, files := wmKit(t, "gaps:\n  inner: 1\n")
+	writeFile(t, files.config, "gaps:\n  inner: 7\n")
 	if _, err := k.wmBackend(); err != nil {
 		t.Fatal(err)
 	}
 	if got := w.value("gaps.inner"); got != int64(7) {
 		t.Fatalf("%v", got)
+	}
+	writeFile(t, files.runtime, "gaps:\n  inner: 2\n")
+	if _, err := k.wmBackend(); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.value("gaps.inner"); got != int64(2) {
+		t.Fatalf("an override beside the app: %v", got)
+	}
+}
+
+func TestResetAllDropsTheWMOverridesToo(t *testing.T) {
+	k, w, fake, files := wmKitWith(t, "gaps:\n  inner: 3\n", "gaps:\n  inner: 5\ntearing: true\n")
+	if err := k.store.set("osd.enabled", false); err != nil {
+		t.Fatal(err)
+	}
+	cfg := resetAllDialog(k)
+	cfg.OnResponse(responseCancel)
+	if fake.checks != 0 || w.value("gaps.inner") != int64(5) {
+		t.Fatal("cancelling reset the lys-wm overrides")
+	}
+	cfg.OnResponse(responseConfirm)
+	if got := fileText(t, files.runtime); strings.TrimSpace(got) != "" {
+		t.Fatalf("%q", got)
+	}
+	if got := w.value("gaps.inner"); got != int64(3) {
+		t.Fatalf("%v", got)
+	}
+	if fake.reloads != 1 {
+		t.Fatalf("%d reloads", fake.reloads)
+	}
+}
+
+func TestResetAllReachesTheWMOverridesBeforeAnyWMPageOpened(t *testing.T) {
+	k := testKit(t, "")
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config"))
+	bin := filepath.Join(dir, "bin")
+	log := filepath.Join(dir, "calls")
+	for _, program := range []string{"lys-wm", "lys-wmctl"} {
+		writeFile(t, filepath.Join(bin, program), "#!/bin/sh\necho \"$0 $*\" >> "+log+"\n")
+		if err := os.Chmod(filepath.Join(bin, program), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	runtime := filepath.Join(dir, "config", "lys-wm", "runtime.yaml")
+	writeFile(t, runtime, "tearing: true\n")
+	k.resetAll()
+	if got := fileText(t, runtime); strings.TrimSpace(got) != "" {
+		t.Fatalf("%q", got)
+	}
+	calls := fileText(t, log)
+	if !strings.Contains(calls, "lys-wm --check-config --runtime") || !strings.Contains(calls, "lys-wmctl reload") {
+		t.Fatalf("%q", calls)
+	}
+}
+
+func TestResetAllWithoutLysWMTouchesNoWMFile(t *testing.T) {
+	k := testKit(t, "")
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PATH", t.TempDir())
+	runtime := filepath.Join(dir, "lys-wm", "runtime.yaml")
+	writeFile(t, runtime, "tearing: true\n")
+	k.resetAll()
+	if got := fileText(t, runtime); got != "tearing: true\n" {
+		t.Fatalf("%q", got)
 	}
 }
 

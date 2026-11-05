@@ -36,7 +36,7 @@ func resetAllDialog(k *kit) app.DialogConfig {
 		CancelResponse: responseCancel,
 		OnResponse: func(r string) {
 			if r == responseConfirm {
-				k.store.resetAll()
+				k.resetAll()
 			}
 		},
 	}

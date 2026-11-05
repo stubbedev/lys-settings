@@ -13,8 +13,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # The compositor whose config the tests hold this app to. The Go code never
-    # links it: lys-wm's contract is its --check-config, --default-config and
-    # --config-schema flags.
+    # links it: lys-wm's contract is its --check-config, --default-config,
+    # --config-schema and --effective-config flags.
     lys-wm = {
       url = "github:stubbedev/lys-wm";
       inputs.nixpkgs.follows = "nixpkgs";

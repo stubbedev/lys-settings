@@ -7,10 +7,12 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -82,7 +84,7 @@ func start(t *testing.T) *session {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(s.path, []byte("# my config\nxwayland:\n  enabled: false # no X here\n"), 0o644); err != nil {
+	if err := os.WriteFile(s.path, []byte(declared), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("lys-wm", "-backend", "headless", "-renderer", "soft")
@@ -151,13 +153,104 @@ func (s *session) reducedMotion() string {
 	return out
 }
 
-func (s *session) content() string {
-	s.t.Helper()
-	data, err := os.ReadFile(s.path)
+const declared = "# my config\nxwayland:\n  enabled: false # no X here\n"
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
 	if err != nil {
-		s.t.Fatal(err)
+		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func (s *session) content() string {
+	s.t.Helper()
+	return read(s.t, s.path)
+}
+
+func (s *session) overrides() string {
+	s.t.Helper()
+	return read(s.t, s.file.Runtime())
+}
+
+type effectiveKey struct {
+	Path   []string `json:"path"`
+	Source string   `json:"source"`
+	File   string   `json:"file"`
+	Line   int      `json:"line"`
+	Value  any      `json:"value"`
+}
+
+func effective(t *testing.T) []effectiveKey {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), bound)
+	defer cancel()
+	out, err := wmconfig.Exec(ctx, "lys-wm", "--effective-config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var info struct {
+		Keys []effectiveKey `json:"keys"`
+	}
+	if err := json.Unmarshal(out, &info); err != nil {
+		t.Fatal(err)
+	}
+	return info.Keys
+}
+
+func jsonValue(t *testing.T, v any) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func agreesWithLysWM(t *testing.T, f *wmconfig.File) {
+	t.Helper()
+	base, exists, err := f.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		data, err := f.BuiltIn()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if base, err = wmconfig.Tree(data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	over, err := f.Overrides()
+	if err != nil {
+		t.Fatal(err)
+	}
+	merged := wmconfig.Merge(base, over)
+	keys := effective(t)
+	if len(keys) == 0 {
+		t.Fatal("lys-wm reports no keys")
+	}
+	for _, k := range keys {
+		if got := wmconfig.Overridden(over, k.Path); got != (k.Source == "runtime") {
+			t.Errorf("%v: lys-wm says %s, this app says overridden %v", k.Path, k.Source, got)
+		}
+		v, ok := wmconfig.Lookup(merged, k.Path)
+		if !ok || jsonValue(t, v) != jsonValue(t, k.Value) {
+			t.Errorf("%v: lys-wm reads %s, this app %s", k.Path, jsonValue(t, k.Value), jsonValue(t, v))
+		}
+	}
+}
+
+func source(t *testing.T, path []string) effectiveKey {
+	t.Helper()
+	for _, k := range effective(t) {
+		if slices.Equal(k.Path, path) {
+			return k
+		}
+	}
+	return effectiveKey{}
 }
 
 var motion = []string{"animations", "reduced_motion"}
@@ -175,21 +268,30 @@ func TestAChangeReachesTheRunningCompositorAndARefusedOneDoesNot(t *testing.T) {
 	if got := s.reducedMotion(); got != "true" {
 		t.Fatalf("the running lys-wm did not take the change: %s", got)
 	}
-	got := s.content()
-	if !strings.HasPrefix(got, "# my config\nxwayland:\n  enabled: false # no X here\n") || !strings.Contains(got, "reduced_motion: true") {
+	if got := s.overrides(); got != "animations:\n  reduced_motion: true\n" {
 		t.Fatalf("%q", got)
 	}
+	if got := s.content(); got != declared {
+		t.Fatalf("the config changed: %q", got)
+	}
+	if k := source(t, motion); k.Source != "runtime" || k.File != s.file.Runtime() || k.Value != true {
+		t.Fatalf("lys-wm does not read the override: %+v", k)
+	}
+	if k := source(t, []string{"xwayland", "enabled"}); k.Source != "config" || k.File != s.path {
+		t.Fatalf("%+v", k)
+	}
+	agreesWithLysWM(t, s.file)
 
-	before := got
+	before := s.overrides()
 	_, err = s.file.Apply([]wmconfig.Edit{{Path: []string{"gaps", "inner"}, Value: -1}})
 	var rejected *wmconfig.RejectedError
 	if !errors.As(err, &rejected) {
 		t.Fatalf("lys-wm's parser did not refuse it: %v", err)
 	}
-	if !strings.Contains(err.Error(), s.path) || !strings.Contains(err.Error(), "gaps.inner") {
+	if !strings.Contains(err.Error(), s.file.Runtime()) || !strings.Contains(err.Error(), "gaps.inner") {
 		t.Fatalf("the refusal does not name the file and key: %v", err)
 	}
-	if s.content() != before {
+	if s.overrides() != before {
 		t.Fatal("a refused change reached the file")
 	}
 	if got := s.reducedMotion(); got != "true" {
@@ -205,20 +307,34 @@ func TestAChangeReachesTheRunningCompositorAndARefusedOneDoesNot(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := s.reducedMotion(); got != "false" {
-		t.Fatalf("after removing the key: %s", got)
+		t.Fatalf("after removing the override: %s", got)
 	}
+	if k := source(t, motion); k.Source != "" {
+		t.Fatalf("a reset key still comes from %+v", k)
+	}
+
+	if _, err := s.file.Apply([]wmconfig.Edit{{Path: motion, Value: true}, {Path: []string{"gaps", "inner"}, Value: 4}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.file.ResetAll(); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.reducedMotion(); got != "false" {
+		t.Fatalf("after a reset of everything: %s", got)
+	}
+	agreesWithLysWM(t, s.file)
 
 	s.stop()
 	reload, err = s.file.Apply([]wmconfig.Edit{{Path: motion, Value: true}})
 	if err != nil || reload != wmconfig.NotRunning {
 		t.Fatalf("with lys-wm gone: %v, %v", reload, err)
 	}
-	if !strings.Contains(s.content(), "reduced_motion: true") {
+	if !strings.Contains(s.overrides(), "reduced_motion: true") {
 		t.Fatal("the change did not reach the file for the next lys-wm")
 	}
 }
 
-func TestAHomeManagerLinkStopsAChangeBeforeItReachesAnything(t *testing.T) {
+func TestAHomeManagerLinkTakesChangesAsOverridesAndStays(t *testing.T) {
 	s := start(t)
 	store := filepath.Join(filepath.Dir(s.path), "..", "store-config.yaml")
 	if err := os.WriteFile(store, []byte(s.content()), 0o444); err != nil {
@@ -230,14 +346,19 @@ func TestAHomeManagerLinkStopsAChangeBeforeItReachesAnything(t *testing.T) {
 	if err := os.Symlink(store, s.path); err != nil {
 		t.Fatal(err)
 	}
-	_, err := s.file.Apply([]wmconfig.Edit{{Path: motion, Value: true}})
-	var ro *wmconfig.ReadOnlyError
-	if !errors.As(err, &ro) || !strings.Contains(err.Error(), "Home Manager") {
-		t.Fatalf("%v", err)
+	if _, err := s.file.Apply([]wmconfig.Edit{{Path: motion, Value: true}}); err != nil {
+		t.Fatal(err)
 	}
-	if got := s.reducedMotion(); got != "false" {
+	if got := s.reducedMotion(); got != "true" {
 		t.Fatalf("%s", got)
 	}
+	if target, err := os.Readlink(s.path); err != nil || target != store {
+		t.Fatalf("the link moved: %q, %v", target, err)
+	}
+	if got := read(t, store); got != declared {
+		t.Fatalf("%q", got)
+	}
+	agreesWithLysWM(t, s.file)
 }
 
 func TestTheBuiltInConfigAndSchemaAreWhatThisAppExpects(t *testing.T) {
@@ -268,13 +389,16 @@ func TestTheBuiltInConfigAndSchemaAreWhatThisAppExpects(t *testing.T) {
 	if _, err := f.Apply([]wmconfig.Edit{{Path: []string{"xwayland", "enabled"}, Value: false}}); err != nil {
 		t.Fatal(err)
 	}
-	after, _, err := f.Read()
-	if err != nil {
-		t.Fatal(err)
+	if _, exists, err := f.Read(); err != nil || exists {
+		t.Fatalf("a first change made a config: %v %v", exists, err)
 	}
-	if binds, ok := after["binds"].([]any); !ok || len(binds) == 0 {
-		t.Fatalf("a first change lost the binds: %v", after["binds"])
+	if got := read(t, f.Runtime()); got != "xwayland:\n  enabled: false\n" {
+		t.Fatalf("%q", got)
 	}
+	if k := source(t, []string{"binds"}); k.Source != "built-in" {
+		t.Fatalf("a first change lost the built-in binds: %+v", k)
+	}
+	agreesWithLysWM(t, f)
 }
 
 func buildApp(t *testing.T) string {

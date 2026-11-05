@@ -20,8 +20,9 @@ Every dev tool, and the `lys-wm` the tests hold the app to, comes from the flake
 ## Tests
 
 - `internal/wmconfig` tests the edits on bytes, with a fuzz target holding each edit to
-  what it says, and the file's negative paths against a fake `lys-wm`: refused, read-only,
-  a Home Manager link, a dangling link, changed during the check, reload failed.
+  what it says, and the override file's negative paths against a fake `lys-wm`: refused,
+  read-only, a Home Manager config, a dangling link, changed during the check, reload
+  failed.
 - `internal/settings` tests the pages and rows, offscreen.
 - `e2e` starts a headless lys-wm in a private runtime directory, changes its config,
   reads the result back over IPC, and opens the real window on it. It skips without

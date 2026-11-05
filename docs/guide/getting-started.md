@@ -20,8 +20,8 @@ lys-shell's launcher finds these pages too: type a page's name to open it.
 | Pages | Written to | Takes effect |
 | --- | --- | --- |
 | lys-shell's | `~/.config/lys-shell/runtime.yaml`, as an override | At once, over the shell's config watcher |
-| Compositor | `~/.config/lys-wm/config.yaml` | At once when a lys-wm is running, by `lys-wmctl reload` |
+| Compositor | `~/.config/lys-wm/runtime.yaml`, as an override | At once when a lys-wm is running, by `lys-wmctl reload` |
 
-**Reset all** drops lys-shell's runtime overrides. It does not touch lys-wm's file.
-A row's reset button there restores what lys-wm would use: the built-in config's
-value for what that sets, such as `binds`, and otherwise removes the key.
+**Reset all** drops every runtime override, lys-shell's and lys-wm's. A row's reset
+button drops that row's override, so the value falls back to your `config.yaml`, then
+to the default.

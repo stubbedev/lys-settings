@@ -1,6 +1,7 @@
 // Package settings is lys-settings: the GUI over lys-shell's and lys-wm's
-// configs. A shell change is a runtime override persisted to runtime.yaml as
-// it lands; a lys-wm change is an edit of its config file (wm.go).
+// configs. Every change is a runtime override over the declared config:
+// lys-shell's runtime.yaml through its config package, lys-wm's runtime.yaml
+// through its config file (wm.go).
 // Pages are data (page.go): rows name config paths, and the editor for
 // each comes from the field's type (config.Field) unless the page asks
 // for another.
@@ -184,27 +185,29 @@ func sourceOf(s store, path string) sourceInfo {
 		path = leaf
 	}
 	t := locale.T()
-	key, class := "", ""
 	_, inConfig := s.svc.ConfigValue(path)
 	switch s.svc.Source(path) {
 	case config.SourceDefault:
 		return sourceInfo{}
 	case config.SourceConfig:
-		key, class = "settings-source-config", "info"
 		cv, _ := s.svc.ConfigValue(path)
 		if dv, err := config.DefaultValue(path); err == nil && reflect.DeepEqual(cv, config.Plain(dv)) {
 			return sourceInfo{}
 		}
+		return sourceInfo{label: t.Get("settings-source-config"), tooltip: t.Attr("settings-source-config", "description"), class: "info", badge: true}
 	case config.SourceRuntime:
-		key, class = "settings-source-custom", "success"
-		if inConfig {
-			key, class = "settings-source-override", "warning"
-		}
+		return runtimeSource(inConfig)
 	}
-	return sourceInfo{
-		label: t.Get(key), tooltip: t.Attr(key, "description"), class: class, badge: true,
-		reset: s.svc.Source(path) == config.SourceRuntime,
+	return sourceInfo{}
+}
+
+func runtimeSource(inConfig bool) sourceInfo {
+	key, class := "settings-source-custom", "success"
+	if inConfig {
+		key, class = "settings-source-override", "warning"
 	}
+	t := locale.T()
+	return sourceInfo{label: t.Get(key), tooltip: t.Attr(key, "description"), class: class, badge: true, reset: true}
 }
 
 // backend is the config a page's rows edit: lys-shell's through its config
