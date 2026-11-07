@@ -33,6 +33,8 @@ func autoEditor(k *kit, s slot, path string, meta config.FieldMeta) (control, er
 		return newOptionalEnum(k, s, meta), nil
 	case meta.Optional && meta.Kind == config.FieldInt:
 		return newOptionalNumber(k, s, meta.Min, meta.Max, 1, 0, 0), nil
+	case meta.Optional && meta.Kind == config.FieldFloat:
+		return newOptionalNumber(k, s, meta.Min, meta.Max, optionalFloatStep, min(max(0, meta.Min), meta.Max), 2), nil
 	}
 	if c, ok := semanticEditor(k, s, path, meta); ok {
 		return c, nil
@@ -43,8 +45,14 @@ func autoEditor(k *kit, s slot, path string, meta config.FieldMeta) (control, er
 	case config.FieldEnum:
 		return newEnumSelect(k, s, meta), nil
 	case config.FieldInt:
+		if fitsSlider(meta) {
+			return newSlider(k, s, meta.Min, meta.Max, true, decimals(0)), nil
+		}
 		return newNumber(k, s, meta.Min, meta.Max, 1, 0), nil
 	case config.FieldFloat:
+		if fitsSlider(meta) {
+			return newSlider(k, s, meta.Min, meta.Max, false, decimals(2)), nil
+		}
 		// scale(): the only float the Rust pages edit without explicit
 		// bounds is a ScaleFactor.
 		return newNumber(k, s, meta.Min, meta.Max, 0.05, 2), nil
@@ -52,6 +60,23 @@ func autoEditor(k *kit, s slot, path string, meta config.FieldMeta) (control, er
 		return newText(k, s, meta.Optional), nil
 	}
 	return nil, fmt.Errorf("settings: a %s needs its own editor", meta.Type)
+}
+
+// optionalFloatStep is the step of an optional fraction without a page's own
+// editor, the hundredths it shows.
+const optionalFloatStep = 0.01
+
+// sliderSpan is the widest range a slider edits: past it one pixel of
+// travel skips values, and the spin button, which types any of them, stays.
+const sliderSpan = 100
+
+// fitsSlider reports whether a number's bounds are narrow enough for a
+// slider with its value beside it.
+func fitsSlider(meta config.FieldMeta) bool { return meta.Max-meta.Min <= sliderSpan }
+
+// decimals formats a value with digits decimals.
+func decimals(digits int) func(float64) string {
+	return func(v float64) string { return strconv.FormatFloat(v, 'f', digits, 64) }
 }
 
 // toggle is ToggleControl: a switch writing the bool.
@@ -225,6 +250,10 @@ type slider struct {
 	slot slot
 }
 
+// sliderPrecision rounds what a slider writes to the hundredths its label
+// shows, so a drag does not store float noise.
+const sliderPrecision = 100
+
 func newSlider(k *kit, s slot, lo, hi float64, whole bool, format func(float64) string) *slider {
 	c := &slider{DebouncedSlider: widgets.NewRangedSlider(lo, hi, lo, k.face, k.textPx(), 0, k.invoke), k: k, slot: s}
 	c.SetFormat(format)
@@ -233,7 +262,7 @@ func newSlider(k *kit, s slot, lo, hi float64, whole bool, format func(float64) 
 			_ = c.slot.set(int64(math.Round(v)))
 			return
 		}
-		_ = c.slot.set(v)
+		_ = c.slot.set(math.Round(v*sliderPrecision) / sliderPrecision)
 	}
 	c.refresh()
 	return c
@@ -250,13 +279,13 @@ func (c *slider) refresh() {
 
 // normalized is slider::normalized: a 0-1 NormalizedF64, labeled "{:.2}".
 var normalized = withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
-	return newSlider(k, s, 0, 1, false, func(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) })
+	return newSlider(k, s, 0, 1, false, decimals(2))
 })
 
 // signedNormalized is slider::signed_normalized: a -1-1 value, labeled
 // "{:.2}".
 var signedNormalized = withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
-	return newSlider(k, s, -1, 1, false, func(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) })
+	return newSlider(k, s, -1, 1, false, decimals(2))
 })
 
 // percentage is slider::percentage: a 0-100 Percentage, labeled

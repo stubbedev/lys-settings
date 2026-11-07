@@ -72,3 +72,55 @@ func TestTextCommitsWhenItLosesTheKeys(t *testing.T) {
 		t.Errorf("leaving an unedited field changed the source to %v", src)
 	}
 }
+
+func TestNarrowRangesGetSlidersThatWriteWhatTheyShow(t *testing.T) {
+	k := testKit(t, "")
+	var ints, floats any
+	whole := autoSlider(t, k, config.FieldMeta{Kind: config.FieldInt, Min: 1, Max: 4}, &ints)
+	whole.Knob.SetValue(2.6)
+	if ints != int64(3) || whole.Label().Text() != "3" {
+		t.Errorf("an int slider wrote %#v showing %q", ints, whole.Label().Text())
+	}
+	frac := autoSlider(t, k, config.FieldMeta{Kind: config.FieldFloat, Min: 0, Max: 1}, &floats)
+	frac.Knob.SetValue(0.123456)
+	if floats != 0.12 || frac.Label().Text() != "0.12" {
+		t.Errorf("a float slider wrote %#v showing %q", floats, frac.Label().Text())
+	}
+	wide, err := autoEditor(k, slot{get: func() any { return int64(0) }}, "x", config.FieldMeta{Kind: config.FieldInt, Min: 0, Max: sliderSpan + 1})
+	if _, ok := wide.(*number); err != nil || !ok {
+		t.Errorf("a range wider than a slider takes %T (%v), want the spin button", wide, err)
+	}
+}
+
+func autoSlider(t *testing.T, k *kit, meta config.FieldMeta, stored *any) *slider {
+	t.Helper()
+	s := slot{get: func() any { return *stored }, set: func(v any) error { *stored = v; return nil }}
+	c, err := autoEditor(k, s, "x", meta)
+	sl, ok := c.(*slider)
+	if err != nil || !ok {
+		t.Fatalf("%+v takes %T (%v), want a slider", meta, c, err)
+	}
+	return sl
+}
+
+func TestAnUnsetOptionalFractionInheritsUntilOverridden(t *testing.T) {
+	k := testKit(t, "")
+	var stored any
+	s := slot{get: func() any { return stored }, set: func(v any) error { stored = v; return nil }, unset: func() { stored = nil }}
+	c, err := autoEditor(k, s, "x", config.FieldMeta{Kind: config.FieldFloat, Min: -1, Max: 1, Optional: true})
+	opt, ok := c.(*optionalNumber)
+	if err != nil || !ok {
+		t.Fatalf("an optional fraction takes %T (%v), want the override editor", c, err)
+	}
+	if opt.on.On() || opt.spin.Enabled() || opt.spin.Value() != 0 {
+		t.Fatalf("unset: override %v, spin live %v at %v; want off, inert, at 0", opt.on.On(), opt.spin.Enabled(), opt.spin.Value())
+	}
+	opt.on.SetOn(true)
+	if stored != 0.0 {
+		t.Errorf("overriding wrote %#v, want 0.0", stored)
+	}
+	opt.on.SetOn(false)
+	if stored != nil {
+		t.Errorf("inheriting again left %#v", stored)
+	}
+}

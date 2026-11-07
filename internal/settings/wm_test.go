@@ -116,7 +116,7 @@ func TestWMRowsFollowTheSchemasTypes(t *testing.T) {
 	for path, want := range map[string]any{
 		"gaps.inner":                  &number{},
 		"tearing":                     &toggle{},
-		"decoration.active_opacity":   &number{},
+		"decoration.active_opacity":   &slider{},
 		"input.touchpad.tap":          &optionalEnum{},
 		"input.touchpad.click_method": &optionalEnum{},
 		"tabs.font":                   &choiceEditor{},
