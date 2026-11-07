@@ -387,7 +387,7 @@ func wmKey(path string) string {
 }
 
 func wmField(path string, opts ...rowOpt) rowSpec {
-	return field(path, append([]rowOpt{withKey(wmKey(path))}, opts...)...)
+	return field(path, append([]rowOpt{withKey(wmKey(path)), func(r *rowSpec) { r.wm = true }}, opts...)...)
 }
 
 func wmFields(paths ...string) []rowSpec {
@@ -444,7 +444,7 @@ func wmSections() []navSection {
 		),
 		wmPage("wm-session", "ld-power-symbolic",
 			sectionSpec{"wm-section-rules", []rowSpec{wmObjects("rules", "app_id", "title", "tag")}},
-			sectionSpec{"wm-section-start", []rowSpec{wmField("autostart", stringList), wmField("env", stringMap)}},
+			sectionSpec{"wm-section-start", []rowSpec{wmField("env", stringMap)}},
 			sectionSpec{"wm-section-xwayland", wmFields("xwayland.enabled", "xwayland.zero_scaling")},
 			sectionSpec{"wm-section-palette", []rowSpec{wmPaletteRow()}},
 		),

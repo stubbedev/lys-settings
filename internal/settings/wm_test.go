@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
@@ -699,6 +700,9 @@ func allWMRows() []rowSpec {
 				rows = append(rows, section.rows...)
 			}
 		}
+	}
+	for _, section := range loginItemsPage(config.Defaults()).sections {
+		rows = append(rows, section.rows...)
 	}
 	return rows
 }

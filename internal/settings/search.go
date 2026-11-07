@@ -37,7 +37,7 @@ type settingEntry struct {
 const wmSettingPrefix = "wm:"
 
 func settingPath(p pageSpec, r rowSpec) string {
-	if p.wm {
+	if p.wm || r.wm {
 		return wmSettingPrefix + r.path
 	}
 	return r.path

@@ -85,7 +85,11 @@ func shellRows() []rowSpec {
 				continue
 			}
 			for _, sec := range p.sections {
-				rows = append(rows, sec.rows...)
+				for _, r := range sec.rows {
+					if !r.wm {
+						rows = append(rows, r)
+					}
+				}
 			}
 		}
 	}

@@ -24,6 +24,8 @@
         # starts in a private runtime directory.
         inputs.lys-wm.packages.${pkgs.stdenv.hostPlatform.system}.default
         wtype
+        # Private buses for the fake system services the tests run.
+        dbus
       ];
 
       LD_LIBRARY_PATH = lib.makeLibraryPath self'.packages.default.libs;

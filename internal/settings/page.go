@@ -38,6 +38,7 @@ type rowSpec struct {
 	key       string
 	editor    editorFunc
 	fullWidth bool
+	wm        bool
 	unit      string
 	// action marks a row that acts rather than holds a value
 	// (RowBehavior::Action): no source badge, no reset.
@@ -134,7 +135,16 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		group.AddClass(css.Card, "settings-group")
 		group.Append(rows, false)
 		for _, rs := range s.rows {
-			row := newFieldRow(k, be, rs)
+			rowBackend := be
+			if rs.wm && !spec.wm {
+				w, err := k.wmBackend()
+				if err != nil {
+					section.Append(wrapped(k.label(err.Error(), "error", css.Caption)), false)
+					continue
+				}
+				rowBackend = w
+			}
+			row := newFieldRow(k, rowBackend, rs)
 			rows.Append(row)
 			p.rows = append(p.rows, row)
 		}
