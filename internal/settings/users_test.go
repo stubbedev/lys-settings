@@ -205,7 +205,12 @@ func pwqualityStack(t *testing.T) (passwordChanger, *fakeLogin) {
 	}
 	dir := t.TempDir()
 	put(t, filepath.Join(dir, "lys-settings-passwd"), "password requisite "+module+" retry=1 minlen=12 dictcheck=0\npassword required pam_permit.so\n")
-	path := filepath.Join(t.TempDir(), "control")
+	sock, err := os.MkdirTemp("", "lys-settings-pw-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(sock) })
+	path := filepath.Join(sock, "control")
 	ln, err := secrets.Listen(path)
 	if err != nil {
 		t.Fatal(err)
