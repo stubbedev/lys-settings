@@ -438,3 +438,41 @@ func TestRowTitlesGiveWayLast(t *testing.T) {
 		}
 	})
 }
+
+// Every source badge is its text and padding, centred on its label's
+// line: an override's badge, on a row whose reset button makes the line
+// taller, is as tall as a config value's on a plain row, at every scale.
+func TestSourceBadgesAreOneHeightWhateverShareTheirLine(t *testing.T) {
+	const declared = "bar:\n  inset-ends: 3\n  inset-edge: 2\n  layout:\n    - monitor: \"*\"\n      show: true\n      left: [clock]\n"
+	for _, scale := range []string{"1", "1.25", "2"} {
+		k := testKit(t, declared+"styling:\n  scale: "+scale+"\n")
+		if err := k.store.set("bar.layout", k.store.value("bar.layout")); err != nil {
+			t.Fatal(err)
+		}
+		cfg := k.store.svc.Config()
+		win := newWindow(k, cfg, func(_ time.Duration, fn func()) { fn() })
+		win.stack.SetTransition(widget.StackNone, 0)
+		apptheme.New(cfg).Attach(win.root)
+		win.show("bar-general")
+		layOut(win, 1400)
+		heights := map[string]int{}
+		for _, row := range win.page.rows {
+			if !row.badge.Visible() {
+				continue
+			}
+			b := row.badge.Bounds()
+			if lb := row.badge.Measure(widget.Column, b.W); b.H != lb.Nat {
+				t.Errorf("scale %s: %s's badge is %dpx tall, its content %dpx", scale, row.path, b.H, lb.Nat)
+			}
+			heights[row.path] = b.H
+		}
+		for _, path := range []string{"bar.layout", "bar.inset-ends", "bar.inset-edge"} {
+			if _, ok := heights[path]; !ok {
+				t.Fatalf("scale %s: %s shows no badge: %v", scale, path, heights)
+			}
+		}
+		if heights["bar.layout"] != heights["bar.inset-ends"] || heights["bar.inset-ends"] != heights["bar.inset-edge"] {
+			t.Errorf("scale %s: badge heights %v", scale, heights)
+		}
+	}
+}

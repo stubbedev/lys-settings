@@ -250,9 +250,9 @@ func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
 		labelRow.AppendAligned(k.label("("+spec.unit+")", "setting-unit", css.Caption, css.DimLabel, css.Monospace), false, widget.AlignCenter)
 	}
 	r.badge = k.badge("")
-	labelRow.Append(r.badge, false)
+	labelRow.AppendAligned(r.badge, false, widget.AlignCenter)
 	if d, ok := ctl.(interface{ dirtyBadge() *widget.Badge }); ok {
-		labelRow.Append(d.dirtyBadge(), false)
+		labelRow.AppendAligned(d.dirtyBadge(), false, widget.AlignCenter)
 	}
 	info.Append(labelRow, false)
 	if desc := description(spec.labelKey()); desc != "" {
