@@ -33,12 +33,18 @@ func wmObjects(path string, title ...string) rowSpec {
 	spec := wmObjectSpec{schema: wmPath(path), labels: wmPath(path)[0], title: title}
 	return wmField(path, func(r *rowSpec) {
 		r.fullWidth = true
-		r.editor = func(k *kit, s slot, _ config.FieldMeta) control { return newWMObjects(k, s, spec) }
+		r.editor = func(k *kit, s slot, _ config.FieldMeta) control {
+			check := k.wm.checker(path)
+			return newWMObjects(k, s, spec, func(items []any) func() error { return check(items) })
+		}
 	})
 }
 
-func newWMObjects(k *kit, s slot, spec wmObjectSpec) *cardList {
+// newWMObjects is the cards of the list in s; check, nil for a list inside
+// another's card, is asked before each write.
+func newWMObjects(k *kit, s slot, spec wmObjectSpec, check func(items []any) func() error) *cardList {
 	return newCardList(k, s, cardSpec{
+		check:      check,
 		title:      func(item map[string]any, number int) string { return wmCardTitle(item, number, spec.title) },
 		fields:     wmItemFields(k.wm, append(slices.Clone(spec.schema), wmconfig.Each), nil, spec.labels),
 		blank:      func() map[string]any { return map[string]any{} },
@@ -161,17 +167,23 @@ func nestedSlot(s slot, keys []string) slot {
 // and its binds, the sets in name order.
 func wmSubmaps() rowSpec {
 	binds := wmObjectSpec{schema: []string{"submaps", wmconfig.Each}, labels: "binds", title: []string{"chord", "action"}}
-	return wmField("submaps", cardRow(cardSpec{
+	spec := cardSpec{
 		identity: &cardField{key: "name", label: "wm-submaps-name", editor: func(k *kit, s slot) control { return newText(k, s, false) }},
 		fields: []cardField{{key: "binds", label: "wm-binds", fill: true, editor: func(k *kit, s slot) control {
-			return newWMObjects(k, s, binds)
+			return newWMObjects(k, s, binds, nil)
 		}}},
 		blank:  func() map[string]any { return map[string]any{"name": "", "binds": []any{}} },
 		keep:   func(item map[string]any) bool { name, _ := item["name"].(string); return name != "" },
 		unique: "name",
-	}), func(r *rowSpec) {
-		build := r.editor
-		r.editor = func(k *kit, s slot, meta config.FieldMeta) control { return build(k, namedLists(s), meta) }
+	}
+	return wmField("submaps", func(r *rowSpec) {
+		r.fullWidth = true
+		r.editor = func(k *kit, s slot, _ config.FieldMeta) control {
+			check := k.wm.checker("submaps")
+			spec := spec
+			spec.check = func(items []any) func() error { return check(namedMap(items)) }
+			return newCardList(k, namedLists(s), spec)
+		}
 	})
 }
 
@@ -189,18 +201,23 @@ func namedLists(s slot) slot {
 		},
 		set: func(v any) error {
 			items, _ := v.([]any)
-			out := make(map[string]any, len(items))
-			for _, it := range items {
-				m, _ := it.(map[string]any)
-				name, _ := m["name"].(string)
-				binds := m["binds"]
-				if binds == nil {
-					binds = []any{}
-				}
-				out[name] = binds
-			}
-			return s.set(out)
+			return s.set(namedMap(items))
 		},
 		unset: s.unset,
 	}
+}
+
+// namedMap is {name, binds} items as the mapping of name to binds.
+func namedMap(items []any) map[string]any {
+	out := make(map[string]any, len(items))
+	for _, it := range items {
+		m, _ := it.(map[string]any)
+		name, _ := m["name"].(string)
+		binds := m["binds"]
+		if binds == nil {
+			binds = []any{}
+		}
+		out[name] = binds
+	}
+	return out
 }

@@ -735,3 +735,28 @@ func TestNormalReadsACompositeAsTheFileWould(t *testing.T) {
 		t.Fatalf("%#v, the file reads %#v", got, file["x"])
 	}
 }
+
+func TestACheckAsksLysWMAboutTheEditedOverridesAndWritesNothing(t *testing.T) {
+	s := &tools{}
+	f, _, runtime := openIn(t, s)
+	const before = "gaps:\n  inner: 1\n"
+	write(t, runtime, before, 0o644)
+	if err := f.Check([]Edit{{Path: []string{"binds"}, Value: []any{map[string]any{"chord": "SUPER + Q", "action": "kill"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.checked) != 1 || !strings.Contains(s.checked[0], "inner: 1") || !strings.Contains(s.checked[0], "chord: SUPER + Q") {
+		t.Fatalf("checked %q", s.checked)
+	}
+	s.reject = "binds[0].chord: is empty"
+	err := f.Check([]Edit{{Path: []string{"binds"}, Value: []any{map[string]any{}}}})
+	if _, ok := errors.AsType[*RejectedError](err); !ok || !strings.Contains(err.Error(), runtime+":1: binds[0].chord") {
+		t.Fatalf("%v", err)
+	}
+	if got := read(t, runtime); got != before {
+		t.Fatalf("%q", got)
+	}
+	if s.ran("lys-wmctl reload") {
+		t.Fatal("a check reloaded")
+	}
+	only(t, filepath.Dir(runtime), "runtime.yaml")
+}

@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
@@ -64,6 +66,11 @@ type cardSpec struct {
 	// collapsed shows each card as its header alone until it is opened,
 	// building its fields then: a long list stays a list of titles.
 	collapsed bool
+	// check, when set, is asked about every write before it is made: it
+	// returns, on the loop, the work that says off it why the target would
+	// refuse the items. A refused write is held as a draft, shown with the
+	// reason and written once the cards make one the target takes.
+	check func(items []any) func() error
 	// addKey labels the add button's tooltip (settings-list-add).
 	addKey   string
 	chrome   *cardChrome
@@ -86,6 +93,13 @@ type cardList struct {
 	// filter narrows the cards shown to those matching it; nil when the
 	// list is not searchable.
 	filter *widget.SearchEntry
+	// draft says why the cards are not written while the target would
+	// refuse them; drafted is the stored value they were drafted over and
+	// checks counts the checks asked, so only the latest answer applies.
+	draft    *widget.Label
+	drafted  any
+	drafting bool
+	checks   int
 }
 
 type card struct {
@@ -107,16 +121,20 @@ func newCardList(k *kit, s slot, spec cardSpec) *cardList {
 	c.list = gapBox(widget.Column)
 	c.list.AddClass(spec.listCls)
 	c.Append(c.list, false)
+	c.draft = k.label("", "setting-problem", css.Caption, css.Error)
+	c.draft.SetWrap(true)
+	c.draft.SetVisible(false)
 	addKey := spec.addKey
 	if addKey == "" {
 		addKey = "settings-list-add"
 	}
 	add := listButton(k, "ld-plus-symbolic", addKey, "list-control-add", func() {
 		c.local = append(c.local, spec.blank())
-		c.commit()
 		c.rebuild()
+		c.commit()
 	})
 	c.AppendAligned(add, false, widget.AlignStart)
+	c.Append(c.draft, false)
 	c.local = c.stored()
 	c.rebuild()
 	return c
@@ -149,8 +167,38 @@ func (c *cardList) written() []any {
 }
 
 func (c *cardList) commit() {
-	_ = c.slot.set(c.written())
 	c.validate()
+	items := c.written()
+	if c.spec.check == nil {
+		c.write(items)
+		return
+	}
+	c.checks++
+	asked := c.checks
+	async(c.k, c.spec.check(items), func(err error) {
+		if asked != c.checks {
+			return
+		}
+		if err != nil {
+			c.hold(err)
+			return
+		}
+		c.write(items)
+	})
+}
+
+func (c *cardList) write(items []any) {
+	c.drafting = false
+	c.draft.SetVisible(false)
+	_ = c.slot.set(items)
+}
+
+// hold keeps the cards as a draft over what is stored, saying why the
+// target refuses them.
+func (c *cardList) hold(err error) {
+	c.drafting, c.drafted = true, c.slot.get()
+	c.draft.SetText(locale.T().Get("settings-list-draft", i18n.Str("reason", strings.TrimSpace(err.Error()))))
+	c.draft.SetVisible(true)
 }
 
 // fieldSlot is the slot of one key of card i: unset removes the key.
@@ -254,8 +302,8 @@ func (c *cardList) appendCard(i int) {
 	remove := c.k.iconButton("ld-trash-2-symbolic", chrome.removeKey, func() {
 		if i < len(c.local) {
 			c.local = append(c.local[:i:i], c.local[i+1:]...)
-			c.commit()
 			c.rebuild()
+			c.commit()
 		}
 	}, chrome.remove...)
 	body := gapBox(widget.Column)
@@ -370,6 +418,11 @@ func (c *cardList) validate() {
 // cards keep, those cards take the stored values in place; with
 // another count the cards are replaced.
 func (c *cardList) refresh() {
+	if c.drafting && reflect.DeepEqual(c.slot.get(), c.drafted) {
+		return
+	}
+	c.drafting = false
+	c.draft.SetVisible(false)
 	stored := c.stored()
 	var kept []int
 	for i, m := range c.local {

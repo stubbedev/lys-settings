@@ -448,3 +448,14 @@ func wmSections() []navSection {
 		),
 	}}}
 }
+
+// checker asks lys-wm whether it would take path set to a value
+// over the overrides and the edits still queued, without writing it: the
+// work runs off the loop and says why lys-wm would not.
+func (w *wmBackend) checker(path string) func(v any) func() error {
+	return func(v any) func() error {
+		edit := wmconfig.Edit{Path: wmPath(path), Value: v}
+		edits := append(slices.DeleteFunc(slices.Clone(w.pending), func(e wmconfig.Edit) bool { return slices.Equal(e.Path, edit.Path) }), edit)
+		return func() error { return w.file.Check(edits) }
+	}
+}

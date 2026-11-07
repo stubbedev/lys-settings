@@ -36,6 +36,7 @@ settings-card-expand = Show details
 settings-card-collapse = Hide details
 settings-list-move-up = Move up
 settings-list-move-down = Move down
+settings-list-draft = Not saved yet: { $reason }
 settings-browse-file = Choose a file
 settings-browse-folder = Choose a folder
 settings-reset-setting = Reset to default

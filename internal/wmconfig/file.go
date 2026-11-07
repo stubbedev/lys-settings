@@ -284,6 +284,24 @@ func (f *File) attempt(edits []Edit) (Reload, bool, error) {
 	return reload, false, err
 }
 
+// Check reports why lys-wm would refuse the override file with the edits
+// made, or nil when it would take it; nothing is written.
+func (f *File) Check(edits []Edit) error {
+	t, err := f.target()
+	if err != nil {
+		return err
+	}
+	current, err := f.current(t)
+	if err != nil {
+		return err
+	}
+	next, err := applyEdits(current, edits)
+	if err != nil {
+		return err
+	}
+	return f.check(t, next)
+}
+
 func applyEdits(src []byte, edits []Edit) ([]byte, error) {
 	var err error
 	for _, e := range edits {

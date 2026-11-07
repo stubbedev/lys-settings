@@ -365,6 +365,7 @@ settings-card-expand = Afficher les détails
 settings-card-collapse = Masquer les détails
 settings-list-move-up = Monter
 settings-list-move-down = Descendre
+settings-list-draft = Pas encore enregistré : { $reason }
 settings-browse-file = Choisir un fichier
 settings-browse-folder = Choisir un dossier
 settings-reset-setting = Rétablir la valeur par défaut
