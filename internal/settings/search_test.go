@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 )
@@ -89,6 +90,10 @@ func TestSearchJumpsToTheSetting(t *testing.T) {
 	if row.path != "general.tearing-mode" || w.page.revealing != row {
 		t.Fatalf("the jump reveals %v, want the tearing row", w.page.revealing)
 	}
+	if focused != nil {
+		t.Fatalf("focus went to %T before the page was laid out", focused)
+	}
+	w.root.Arrange(render.Rect{W: windowWidth, H: windowHeight})
 	if focused == nil || focused != widget.FirstFocusable(row.ctl) {
 		t.Errorf("focus went to %T, want the row's switch", focused)
 	}

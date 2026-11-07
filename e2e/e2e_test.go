@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/lys-shell/settingspage"
+	"github.com/stubbedev/lys-ui/app"
 
 	"github.com/stubbedev/lys-settings/internal/wmconfig"
 )
@@ -578,4 +579,160 @@ func (s *session) chooseOn(t *testing.T, want string) {
 		}
 		return true
 	})
+}
+
+func (s *session) inhibiting() bool {
+	s.t.Helper()
+	out, err := s.ctl("activewindow")
+	if err != nil {
+		return false
+	}
+	var w struct {
+		AppID    string `json:"app_id"`
+		Inhibits bool   `json:"inhibits_shortcuts"`
+	}
+	return json.Unmarshal([]byte(out), &w) == nil && w.AppID == "dev.stubbe.lys.settings" && w.Inhibits
+}
+
+func within(d time.Duration, ok func() bool) bool {
+	deadline := time.Now().Add(d)
+	for !ok() {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(poll)
+	}
+	return true
+}
+
+func TestTheShortcutRecorderHoldsLysWMsBindsOffAndWritesTheChord(t *testing.T) {
+	s := start(t)
+	if _, err := exec.LookPath("wtype"); err != nil {
+		t.Fatalf("the dev shell provides wtype: %v", err)
+	}
+	if _, err := s.file.Apply([]wmconfig.Edit{{Path: []string{"binds"}, Value: []any{map[string]any{"chord": "SUPER + SHIFT + K", "action": "kill"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	bin := buildApp(t)
+	s.display(t)
+	s.launch(t, bin, settingspage.PageFlag, "wm-input")
+	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.until("the bind's recorder recording, with lys-wm's shortcuts inhibited", func() bool {
+		for _, args := range [][]string{{settingspage.PageFlag, "wm-input"}, {settingspage.SettingFlag, "wm:binds"}} {
+			if out, err := exec.Command(bin, args...).CombinedOutput(); err != nil {
+				t.Fatalf("%v: %v\n%s", args, err, out)
+			}
+		}
+		time.Sleep(settle / 6)
+		for _, key := range []string{"Tab", "space", "Tab", "Tab", "Tab", "Tab", "space"} {
+			press(t, key)
+		}
+		if within(settle, s.inhibiting) {
+			return true
+		}
+		press(t, "Escape")
+		return false
+	})
+	if out, err := exec.Command("wtype", "-M", "logo", "-M", "shift", "-k", "j", "-m", "shift", "-m", "logo").CombinedOutput(); err != nil {
+		t.Fatalf("wtype: %v\n%s", err, out)
+	}
+	s.until("the recorded chord in lys-wm's syntax, taken by lys-wm", func() bool {
+		return strings.Contains(s.overrides(), "chord: SUPER + SHIFT + J")
+	})
+	s.until("the inhibitor dropped once the chord was recorded", func() bool { return !s.inhibiting() })
+	if problems, err := s.ctl("configproblems"); err != nil || strings.Contains(problems, "binds") {
+		t.Fatalf("lys-wm reports %q, %v", problems, err)
+	}
+}
+
+func registerShortcut(t *testing.T, appID, id string) <-chan bool {
+	t.Helper()
+	sess, err := app.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := app.NewApplication(sess)
+	release := a.Hold()
+	presses := make(chan bool, 16)
+	registered := make(chan error, 1)
+	a.Invoke(func() {
+		a.RegisterGlobalShortcut(id, appID, "a test shortcut", "", func(pressed bool, _ uint64) { presses <- pressed }, func(_ *app.GlobalShortcut, err error) { registered <- err })
+	})
+	ran := make(chan error, 1)
+	go func() { ran <- a.Run() }()
+	t.Cleanup(func() {
+		a.Invoke(release)
+		select {
+		case <-ran:
+		case <-time.After(bound):
+			t.Error("the shortcut client did not stop")
+		}
+		sess.Close()
+	})
+	select {
+	case err := <-registered:
+		if err != nil {
+			t.Fatalf("register %s:%s: %v", appID, id, err)
+		}
+	case <-time.After(bound):
+		t.Fatalf("no answer to registering %s:%s in %s", appID, id, bound)
+	}
+	return presses
+}
+
+func TestARecordedAppShortcutPressesWhatTheAppRegistered(t *testing.T) {
+	s := start(t)
+	if _, err := exec.LookPath("wtype"); err != nil {
+		t.Fatalf("the dev shell provides wtype: %v", err)
+	}
+	state := filepath.Join(os.Getenv("HOME"), "state")
+	t.Setenv("XDG_STATE_HOME", state)
+	if err := os.MkdirAll(filepath.Join(state, "lys-shell"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(state, "lys-shell", "portal-shortcuts.json"), []byte(`{"org.example.Recorder":[{"id":"start","description":"Start recording"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.file.Apply([]wmconfig.Edit{{Path: []string{"binds"}, Value: []any{map[string]any{"chord": "SUPER + SHIFT + K", "action": "kill"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	bin := buildApp(t)
+	s.display(t)
+	presses := registerShortcut(t, "org.example.Recorder", "start")
+	s.launch(t, bin, settingspage.PageFlag, "wm-input")
+	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.until("the app shortcut's recorder recording", func() bool {
+		for _, args := range [][]string{{settingspage.PageFlag, "wm-input"}, {settingspage.SettingFlag, "wm:binds"}} {
+			if out, err := exec.Command(bin, args...).CombinedOutput(); err != nil {
+				t.Fatalf("%v: %v\n%s", args, err, out)
+			}
+		}
+		time.Sleep(settle / 6)
+		for _, key := range []string{"Tab", "Tab", "Tab", "Tab", "Tab", "Tab", "space"} {
+			press(t, key)
+		}
+		if within(settle, s.inhibiting) {
+			return true
+		}
+		press(t, "Escape")
+		return false
+	})
+	if out, err := exec.Command("wtype", "-M", "logo", "-M", "alt", "-k", "r", "-m", "alt", "-m", "logo").CombinedOutput(); err != nil {
+		t.Fatalf("wtype: %v\n%s", err, out)
+	}
+	s.until("a global bind for the app's shortcut, taken by lys-wm", func() bool {
+		o := s.overrides()
+		return strings.Contains(o, "chord: SUPER + ALT + R") && strings.Contains(o, "action: global org.example.Recorder:start")
+	})
+	if out, err := s.ctl("dispatch", "global", "org.example.Recorder:start"); err != nil {
+		t.Fatalf("dispatch the bind's action: %v %s", err, out)
+	}
+	select {
+	case pressed := <-presses:
+		if !pressed {
+			t.Fatal("the app saw a release before any press")
+		}
+	case <-time.After(bound):
+		t.Fatalf("the app's shortcut was not pressed in %s", bound)
+	}
 }

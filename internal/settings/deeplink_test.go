@@ -22,6 +22,7 @@ func TestASettingLaunchOpensItsPageFocusedAndHighlighted(t *testing.T) {
 	var focused widget.Widget
 	w.focus = func(x widget.Widget) { focused = x }
 	w.open(launch{setting: "bar.location"})
+	w.root.Arrange(render.Rect{W: windowWidth, H: windowHeight})
 	if w.pageID != "bar-general" {
 		t.Fatalf("page %q, want bar-general", w.pageID)
 	}
@@ -168,6 +169,7 @@ func TestTheNewestLaunchBeforeTheWindowShowsIsTheOneItOpens(t *testing.T) {
 		t.Fatalf("before the window shows: page %q, focused %T", w.pageID, focused)
 	}
 	w.presentedFirst()
+	w.root.Arrange(render.Rect{W: windowWidth, H: windowHeight})
 	if w.pageID != "bar-general" || focused == nil {
 		t.Fatalf("once shown: page %q, focused %T", w.pageID, focused)
 	}

@@ -90,6 +90,7 @@ type settingsPage struct {
 	status *wmStatus
 	// revealing is the row the next layout scrolls into view.
 	revealing *settingRow
+	focusing  func()
 }
 
 // buildPage lays out a page (pages/layout.rs).
@@ -182,15 +183,18 @@ func (p *settingsPage) reveal(i int, focus func(widget.Widget)) *settingRow {
 		return nil
 	}
 	row := p.rows[i]
+	give := func() {
+		if target := widget.FirstFocusable(row.ctl); target != nil && focus != nil {
+			focus(target)
+		}
+	}
 	if row.Bounds().Empty() {
-		p.revealing = row
+		p.revealing, p.focusing = row, give
 		p.InvalidateLayout()
-	} else {
-		widget.RevealRect(row, row.Bounds())
+		return row
 	}
-	if target := widget.FirstFocusable(row.ctl); target != nil && focus != nil {
-		focus(target)
-	}
+	widget.RevealRect(row, row.Bounds())
+	give()
 	return row
 }
 
@@ -200,5 +204,9 @@ func (p *settingsPage) Arrange(r render.Rect) {
 	if row := p.revealing; row != nil {
 		p.revealing = nil
 		widget.RevealRect(row, row.Bounds())
+	}
+	if give := p.focusing; give != nil {
+		p.focusing = nil
+		give()
 	}
 }

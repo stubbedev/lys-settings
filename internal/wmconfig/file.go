@@ -451,6 +451,13 @@ type Field struct {
 	MinItems, MaxItems int
 	Default            any
 	HasDefault         bool
+	Actions            []Action
+}
+
+type Action struct {
+	Name    string `json:"name"`
+	Args    string `json:"args"`
+	Summary string `json:"summary"`
 }
 
 // Schema is lys-wm's config schema, parsed at the boundary.
@@ -469,6 +476,7 @@ type schemaNode struct {
 	OneOf            []*schemaNode          `json:"oneOf"`
 	Properties       map[string]*schemaNode `json:"properties"`
 	Items            *schemaNode            `json:"items"`
+	Actions          []Action               `json:"x-lys-wm-actions"`
 	// Values is a mapping's additionalProperties when it is a schema; the
 	// JSON boolean form, which says only whether other keys are allowed,
 	// leaves it nil.
@@ -557,7 +565,7 @@ func (s *Schema) node(path []string) (*schemaNode, bool) {
 }
 
 func (n *schemaNode) field() (Field, bool) {
-	f := Field{Min: -unboundedInt, Max: unboundedInt, MaxItems: unboundedInt, Format: n.Format}
+	f := Field{Min: -unboundedInt, Max: unboundedInt, MaxItems: unboundedInt, Format: n.Format, Actions: slices.Clone(n.Actions)}
 	switch {
 	case len(n.OneOf) > 0 || n.Type == "object" || n.Type == "array":
 		f.Kind = Composite

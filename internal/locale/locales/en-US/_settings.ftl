@@ -491,3 +491,5 @@ settings-weekday-thu = Thu
 settings-weekday-fri = Fri
 settings-weekday-sat = Sat
 settings-weekday-sun = Sun
+settings-clash = { $value } is also bound by { $other }
+settings-clash-replace = Replace

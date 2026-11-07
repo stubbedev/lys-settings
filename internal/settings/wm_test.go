@@ -22,8 +22,8 @@ import (
 const wmSchema = `{"type":"object","properties":{
 "gaps":{"type":"object","properties":{"inner":{"type":"integer","minimum":0,"default":8},"outer":{"oneOf":[{"type":"integer"},{"type":"array"}]}}},
 "tearing":{"type":"boolean","default":false},
-"binds":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string"},"chord":{"type":"string"},"flags":{"type":"array","items":{"type":"string","enum":["locked","repeating"]}}},"additionalProperties":false}},
-"submaps":{"type":"object","additionalProperties":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string"},"chord":{"type":"string"}},"additionalProperties":false}}},
+"binds":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string","format":"lys-wm-action","x-lys-wm-actions":[{"name":"kill","summary":"Close"},{"name":"exec","args":"<command>","summary":"Run"},{"name":"workspace","args":"<n>","summary":"Show"}]},"chord":{"type":"string","format":"lys-wm-chord"},"flags":{"type":"array","items":{"type":"string","enum":["locked","repeating"]}}},"additionalProperties":false}},
+"submaps":{"type":"object","additionalProperties":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string","format":"lys-wm-action","x-lys-wm-actions":[{"name":"kill","summary":"Close"}]},"chord":{"type":"string","format":"lys-wm-chord"}},"additionalProperties":false}}},
 "rules":{"type":"array","items":{"type":"object","properties":{"app_id":{"type":"string"},"float":{"type":"boolean"},"look":{"type":"object","properties":{"grain":{"type":"number"}}}}}},
 "borders":{"type":"object","properties":{"active":{"default":"accent","oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string"}}}}]}}},
 "decoration":{"type":"object","properties":{"active_opacity":{"type":"number","minimum":0,"maximum":1,"default":1},"shadow":{"type":"object","properties":{"color":{"type":"string","format":"lys-wm-color","default":"#00000060"}}}}},

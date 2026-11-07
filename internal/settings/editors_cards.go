@@ -61,6 +61,7 @@ type cardSpec struct {
 	keep     func(item map[string]any) bool
 	clean    func(item map[string]any) map[string]any
 	unique   string
+	clashKey string
 	// searchable heads the cards with a filter over the items' values.
 	searchable bool
 	// collapsed shows each card as its header alone until it is opened,
@@ -100,6 +101,7 @@ type cardList struct {
 	drafted  any
 	drafting bool
 	checks   int
+	partners []int
 }
 
 type card struct {
@@ -107,6 +109,8 @@ type card struct {
 	title    *widget.Label
 	identity control
 	controls []control
+	clash    *widget.Box
+	clashMsg *widget.Label
 }
 
 func newCardList(k *kit, s slot, spec cardSpec) *cardList {
@@ -199,6 +203,10 @@ func (c *cardList) discardDraft() {
 	c.checks++
 	c.drafting = false
 	c.draft.SetVisible(false)
+	if c.spec.keep != nil && slices.ContainsFunc(c.local, func(m map[string]any) bool { return !c.spec.keep(m) }) {
+		c.local = slices.DeleteFunc(c.local, func(m map[string]any) bool { return !c.spec.keep(m) })
+		c.rebuild()
+	}
 }
 
 // hold keeps the cards as a draft over what is stored, saying why the
@@ -336,6 +344,7 @@ func (c *cardList) appendCard(i int) {
 		header.AppendAligned(remove, false, widget.AlignCenter)
 		fill()
 		cd.root = sectionCard(header, body, chrome.card)
+		c.addClash(cd, i)
 		c.list.Append(cd.root, false)
 		c.cards = append(c.cards, cd)
 		c.retitle(i)
@@ -343,6 +352,7 @@ func (c *cardList) appendCard(i int) {
 	}
 	cd.root = sectionCard(header, body, chrome.card)
 	sep, _ := cd.root.Children()[1].(*widget.Separator)
+	c.addClash(cd, i)
 	show := func(open bool) {
 		sep.SetVisible(open)
 		body.SetVisible(open)
@@ -393,6 +403,7 @@ func (c *cardList) retitle(i int) {
 // validate marks the identity of every card whose unique key repeats
 // another's (the duplicate preset id): the error class and tooltip.
 func (c *cardList) validate() {
+	c.markClashes()
 	if c.spec.unique == "" {
 		return
 	}
@@ -588,3 +599,56 @@ var toastPresetList = cardRow(cardSpec{
 		return m
 	},
 })
+
+func (c *cardList) addClash(cd *card, i int) {
+	if c.spec.clashKey == "" {
+		return
+	}
+	th := widget.Current()
+	cd.clash = gapBox(widget.Row)
+	cd.clash.AddClass("card-clash")
+	cd.clash.SetPadding(render.Insets{Top: th.Padding, Right: 2 * th.Padding, Bottom: th.Padding, Left: 2 * th.Padding})
+	cd.clashMsg = c.k.label("", "setting-problem", css.Caption, css.Warning)
+	cd.clashMsg.SetWrap(true)
+	cd.clash.AppendAligned(cd.clashMsg, true, widget.AlignCenter)
+	cd.clash.AppendAligned(c.k.button(c.k.label(locale.T().Get("settings-clash-replace")), func() { c.replace(i) }, css.Small), false, widget.AlignCenter)
+	cd.clash.SetVisible(false)
+	cd.root.Append(cd.clash, false)
+}
+
+func (c *cardList) markClashes() {
+	if c.spec.clashKey == "" {
+		return
+	}
+	values := make([]string, len(c.local))
+	for i, m := range c.local {
+		values[i], _ = m[c.spec.clashKey].(string)
+	}
+	c.partners = chordClashes(values, normalChord)
+	t := locale.T()
+	for i, cd := range c.cards {
+		if cd.clash == nil || i >= len(c.partners) {
+			continue
+		}
+		p := c.partners[i]
+		cd.clash.SetVisible(p >= 0)
+		if p >= 0 {
+			cd.clashMsg.SetText(t.Get("settings-clash", i18n.Str("value", values[i]), i18n.Str("other", c.spec.title(c.local[p], p+1))))
+		}
+	}
+}
+
+func (c *cardList) replace(i int) {
+	if i >= len(c.partners) || c.partners[i] < 0 {
+		return
+	}
+	p := c.partners[i]
+	delete(c.local[p], c.spec.clashKey)
+	if p < len(c.cards) {
+		for _, ctl := range c.cards[p].controls {
+			ctl.refresh()
+		}
+	}
+	c.retitle(p)
+	c.commit()
+}

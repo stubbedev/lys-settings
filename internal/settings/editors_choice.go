@@ -126,6 +126,11 @@ func semanticEditor(k *kit, s slot, path string, meta config.FieldMeta) (control
 		return newChoiceEditor(k, s, choiceSpec{list: fixed(idleTimeouts...), free: true}), true
 	case wmColorFormat:
 		return newWMColorEditor(k, s), true
+	case wmChordFormat:
+		return newChordEditor(k, s), true
+	case wmActionFormat:
+		f, _ := k.wm.fieldOf(path)
+		return newWMActionEditor(k, s, f.Actions), true
 	}
 	if len(meta.Placeholders) > 0 {
 		return newFormatEditor(k, s, meta.Optional, placeholderFormat(meta.Placeholders)), true

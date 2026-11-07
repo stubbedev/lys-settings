@@ -43,14 +43,20 @@ func wmObjects(path string, title ...string) rowSpec {
 // newWMObjects is the cards of the list in s; check, nil for a list inside
 // another's card, is asked before each write.
 func newWMObjects(k *kit, s slot, spec wmObjectSpec, check func(items []any) func() error) *cardList {
-	return newCardList(k, s, cardSpec{
+	item := append(slices.Clone(spec.schema), wmconfig.Each)
+	cards := cardSpec{
 		check:      check,
 		title:      func(item map[string]any, number int) string { return wmCardTitle(item, number, spec.title) },
-		fields:     wmItemFields(k.wm, append(slices.Clone(spec.schema), wmconfig.Each), nil, spec.labels),
+		fields:     wmItemFields(k.wm, item, nil, spec.labels),
 		blank:      func() map[string]any { return map[string]any{} },
 		searchable: true,
 		collapsed:  true,
-	})
+	}
+	if f, ok := k.wm.schema.Field(append(item, chordKey)); ok && f.Format == wmChordFormat {
+		cards.clashKey = chordKey
+		cards.keep = func(m map[string]any) bool { chord, _ := m[chordKey].(string); return chord != "" }
+	}
+	return newCardList(k, s, cards)
 }
 
 // wmCardTitle joins the values of the title keys an item sets, else

@@ -432,6 +432,7 @@ func wmSections() []navSection {
 		wmPage("wm-binds", "ld-key-round-symbolic",
 			sectionSpec{"wm-section-binds", []rowSpec{wmObjects("binds", "chord", "action")}},
 			sectionSpec{"wm-section-submaps", []rowSpec{wmSubmaps()}},
+			sectionSpec{"wm-section-app-shortcuts", []rowSpec{appShortcutsRow()}},
 			sectionSpec{"wm-section-gestures", []rowSpec{
 				wmObjects("gestures.swipe", "fingers", "direction", "modifiers"), wmObjects("gestures.pinch", "fingers", "direction", "modifiers"),
 				wmObjects("gestures.hold", "fingers", "modifiers"), wmField("gestures.distance"),

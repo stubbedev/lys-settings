@@ -494,3 +494,5 @@ settings-weekday-thu = Jeu
 settings-weekday-fri = Ven
 settings-weekday-sat = Sam
 settings-weekday-sun = Dim
+settings-clash = { $value } est aussi lié à { $other }
+settings-clash-replace = Remplacer
