@@ -13,6 +13,10 @@ import (
 // lys-wm keys that take one of two forms: gaps.outer, one number or one
 // per side, and a border, one colour or a gradient.
 
+// sideWidthChars fits a side's spin to a gap of up to four digits, so the
+// four sides sit on one line of the narrowest page.
+const sideWidthChars = 4
+
 // sideKeys label gaps.outer's sides in the order lys-wm lists them.
 var sideKeys = [4]string{"wm-side-top", "wm-side-right", "wm-side-bottom", "wm-side-left"}
 
@@ -47,6 +51,7 @@ func newSidesEditor(k *kit, s slot) *sidesEditor {
 	for i := range c.spins {
 		spin := widget.NewSpinButton(k.face, k.textPx(), 0, 0, math.MaxInt32, 1, 0)
 		spin.SetTooltip(t.Get(sideKeys[i]))
+		spin.SetWidthChars(sideWidthChars, sideWidthChars)
 		spin.OnValueChanged = c.write
 		c.spins[i] = spin
 		c.AppendAligned(spin, false, widget.AlignCenter)
