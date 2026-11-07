@@ -38,6 +38,13 @@ type listSpec struct {
 	// stored value (a map's pairs); nil for a plain list.
 	decode func(v any) []any
 	encode func(items []any) any
+	// pick, when set, chooses a new item instead of adding blank: it opens
+	// beside the add button and calls choose with each value the user
+	// settles on, the first adding the item and later ones replacing it, so
+	// a dismissed pick adds nothing.
+	pick func(anchor widget.Widget, choose func(v any))
+	// full reports whether a list of n items takes no more; nil never does.
+	full func(n int) bool
 }
 
 type listEditor struct {
@@ -46,6 +53,7 @@ type listEditor struct {
 	slot  slot
 	spec  listSpec
 	rows  *widget.Box
+	add   *widget.Button
 	items []listItem
 }
 
@@ -61,13 +69,18 @@ func newListEditor(k *kit, s slot, spec listSpec) *listEditor {
 	c.Append(c.rows, false)
 	// A new row writes only when it changes the stored value: a blank
 	// list item does, a map's keyless pair encodes away and does not.
-	add := listButton(k, "ld-plus-symbolic", spec.addKey, "list-control-add", func() {
+	c.add = listButton(k, "ld-plus-symbolic", spec.addKey, "list-control-add", func() {
+		if spec.pick != nil {
+			c.pickNew()
+			return
+		}
 		c.appendRow(spec.blank)
+		c.fit()
 		if !sameStored(c.slot.get(), c.encoded()) {
 			c.commit()
 		}
 	})
-	c.AppendAligned(add, false, widget.AlignStart)
+	c.AppendAligned(c.add, false, widget.AlignStart)
 	c.rebuild(c.stored())
 	return c
 }
@@ -109,6 +122,29 @@ func (c *listEditor) rebuild(values []any) {
 	for _, v := range values {
 		c.appendRow(v)
 	}
+	c.fit()
+}
+
+// fit hides the add button once the list is full.
+func (c *listEditor) fit() {
+	c.add.SetVisible(c.spec.full == nil || !c.spec.full(len(c.items)))
+}
+
+// pickNew has the spec's pick choose a new item: its first choice adds
+// the item, each later one replaces it.
+func (c *listEditor) pickNew() {
+	at := -1
+	c.spec.pick(c.add, func(v any) {
+		values := c.values()
+		if at < 0 || at >= len(values) {
+			at = len(values)
+			values = append(values, v)
+		} else {
+			values[at] = v
+		}
+		c.rebuild(values)
+		c.commit()
+	})
 }
 
 func (c *listEditor) appendRow(v any) {
@@ -273,7 +309,11 @@ func (m mapItem) itemValue() any { return [2]string{m.key.Text(), m.value.Text()
 
 // stringMap is string_map::string_map: key/value rows, an empty key
 // dropped on write, the stored map shown sorted by key.
-var stringMap = listRow(func(config.FieldMeta) listSpec {
+var stringMap = listRow(func(config.FieldMeta) listSpec { return stringMapSpec() })
+
+// stringMapSpec is a mapping of words to words, a key and a value entry per
+// pair.
+func stringMapSpec() listSpec {
 	t := locale.T()
 	return listSpec{
 		addKey: "settings-map-add", rowClass: "string-map-row", blank: [2]string{}, classes: []string{"string-map-editor"}, listCls: "string-map",
@@ -310,4 +350,4 @@ var stringMap = listRow(func(config.FieldMeta) listSpec {
 			return out
 		},
 	}
-})
+}

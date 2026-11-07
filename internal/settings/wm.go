@@ -444,7 +444,7 @@ func wmSections() []navSection {
 			sectionSpec{"wm-section-rules", []rowSpec{wmObjects("rules", "app_id", "title", "tag")}},
 			sectionSpec{"wm-section-start", []rowSpec{wmField("autostart", stringList), wmField("env", stringMap)}},
 			sectionSpec{"wm-section-xwayland", wmFields("xwayland.enabled", "xwayland.zero_scaling")},
-			sectionSpec{"wm-section-palette", []rowSpec{wmField("palette", stringMap)}},
+			sectionSpec{"wm-section-palette", []rowSpec{wmPaletteRow()}},
 		),
 	}}}
 }

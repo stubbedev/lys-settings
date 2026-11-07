@@ -610,7 +610,9 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	"b":{"type":"number","exclusiveMinimum":0,"maximum":1,"default":1},
 	"c":{"type":"string","enum":["x","y"]},
 	"d":{"type":"boolean","default":true},
-	"e":{"oneOf":[{"type":"integer"},{"type":"array"}]},
+	"e":{"oneOf":[{"type":"integer"},{"type":"array"}],"default":8},
+	"i":{"default":"accent","oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string"}}}}]},
+	"p":{"type":"object","additionalProperties":{"type":"string"},"default":{"red":"#f38ba8"}},
 	"f":{"type":"object","properties":{"g":{"type":"string"},"c":{"type":"string","format":"lys-wm-color"}}},
 	"h":{"type":"array"}}}`))
 	if err != nil {
@@ -636,8 +638,17 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	if f := field("d"); f.Kind != Bool || f.Default != true {
 		t.Errorf("d: %+v", f)
 	}
-	if f := field("e"); f.Kind != Composite {
+	if f := field("e"); f.Kind != Composite || f.Default != 8 || f.MaxItems != unboundedInt {
 		t.Errorf("e: %+v", f)
+	}
+	if f := field("i"); f.Kind != Composite || f.Default != "accent" {
+		t.Errorf("i: %+v", f)
+	}
+	if f := field("i", "colors"); f.Kind != Composite || f.MinItems != 1 || f.MaxItems != 10 {
+		t.Errorf("i.colors, in the object form: %+v", f)
+	}
+	if f := field("p"); !reflect.DeepEqual(f.Default, map[string]any{"red": "#f38ba8"}) {
+		t.Errorf("p: %+v", f)
 	}
 	if f := field("f", "g"); f.Kind != Text || f.Format != "" {
 		t.Errorf("f.g: %+v", f)
@@ -710,5 +721,17 @@ func TestSchemaReachesListItemsAndMappingValues(t *testing.T) {
 	}
 	if _, ok := s.Keys([]string{"env"}); ok {
 		t.Error("a mapping without keys of its own lists some")
+	}
+}
+
+func TestNormalReadsACompositeAsTheFileWould(t *testing.T) {
+	f := Field{Kind: Composite}
+	from := map[string]any{"colors": []any{"accent"}, "angle": float64(45)}
+	file, err := Tree([]byte("x:\n  colors: [accent]\n  angle: 45\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Normal(from); !reflect.DeepEqual(got, f.Normal(file["x"])) || !reflect.DeepEqual(got, file["x"]) {
+		t.Fatalf("%#v, the file reads %#v", got, file["x"])
 	}
 }

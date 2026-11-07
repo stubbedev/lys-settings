@@ -1,13 +1,18 @@
 package settings
 
 import (
+	"fmt"
+	"log"
 	"math"
 
+	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
 	"github.com/stubbedev/lys-settings/internal/locale"
+	"github.com/stubbedev/lys-settings/internal/wmconfig"
 )
 
 // lys-wm keys that take one of two forms: gaps.outer, one number or one
@@ -16,10 +21,10 @@ import (
 // sideKeys label gaps.outer's sides in the order lys-wm lists them.
 var sideKeys = [4]string{"wm-side-top", "wm-side-right", "wm-side-bottom", "wm-side-left"}
 
-// sidesEditor is a spin per side, all empty and reading "Inherited" while
-// lys-wm's own gap applies. Setting one side while the others are empty
-// sets them all to it; equal sides write one number, others the four, and
-// emptying any side inherits again.
+// sidesEditor is a spin per side showing the gap lys-wm uses, all empty and
+// reading "Inherited" only when lys-wm names none. Setting one side while
+// the others are empty sets them all to it; equal sides write one number,
+// others the four, and emptying any side inherits again.
 type sidesEditor struct {
 	*widget.Box
 	slot  slot
@@ -102,7 +107,8 @@ func toFloat(v any) float64 {
 const maxBorderAngle = 360
 
 // borderEditor is a border's colours, one or a gradient's, and the
-// gradient's angle; no colour leaves the key to lys-wm.
+// gradient's angle, lys-wm's own while the key is unset; removing every
+// colour leaves the key to lys-wm again.
 type borderEditor struct {
 	*widget.Box
 	colors *listEditor
@@ -111,13 +117,15 @@ type borderEditor struct {
 	slot   slot
 }
 
-func newBorderEditor(k *kit, s slot) *borderEditor {
+func newBorderEditor(k *kit, s slot, colors wmconfig.Field) *borderEditor {
 	c := &borderEditor{Box: gapBox(widget.Column), slot: s}
 	c.colors = newListEditor(k, slot{
 		get: func() any { colors, _ := c.parts(); return colors },
 		set: func(v any) error { colors, _ := v.([]any); _, angle := c.parts(); return c.write(colors, angle) },
 	}, listSpec{
-		addKey: "wm-border-add-colour", rowClass: "string-list-row", reorder: true, blank: "",
+		addKey: "wm-border-add-colour", rowClass: "string-list-row", reorder: true,
+		pick: func(anchor widget.Widget, choose func(any)) { c.pickColour(k, anchor, choose) },
+		full: func(n int) bool { return n >= colors.MaxItems },
 		item: func(k *kit, v any, changed func()) listItem {
 			value, _ := v.(string)
 			item := &colorItem{value: value}
@@ -139,6 +147,35 @@ func newBorderEditor(k *kit, s slot) *borderEditor {
 	c.Append(c.angled, false)
 	c.refresh()
 	return c
+}
+
+// pickColour opens the colour picker beside anchor at the border's last
+// colour, its colours offered as the custom row; a pick chooses the new
+// colour and closes it.
+func (c *borderEditor) pickColour(k *kit, anchor widget.Widget, choose func(any)) {
+	if k.pickers == nil {
+		return
+	}
+	colors, _ := c.parts()
+	var shown []render.Color
+	for _, v := range colors {
+		if col, ok := wmColorRGB(k, fmt.Sprint(v)); ok {
+			shown = append(shown, col)
+		}
+	}
+	current := render.Color(0)
+	if len(shown) > 0 {
+		current = shown[len(shown)-1]
+	}
+	p := widget.NewSwatchPicker(k.face, k.textPx(), widget.DefaultSwatches(), current)
+	p.SetCustom(shown)
+	var closePicker func()
+	p.OnEdited = func(col render.Color) { choose(styling.HexRGBA(col)) }
+	p.OnPicked = func(col render.Color) {
+		choose(styling.HexRGBA(col))
+		closePicker()
+	}
+	closePicker = k.pickers.popover(anchor, p, p)
 }
 
 // colorItem is a gradient's colour.
@@ -193,6 +230,48 @@ func wmSides(path string) rowSpec {
 func wmBorder(path string) rowSpec {
 	return wmField(path, func(r *rowSpec) {
 		r.fullWidth = true
-		r.editor = func(k *kit, s slot, _ config.FieldMeta) control { return newBorderEditor(k, s) }
+		r.editor = func(k *kit, s slot, _ config.FieldMeta) control {
+			colors, ok := k.wm.fieldOf(path + ".colors")
+			if !ok {
+				log.Panicf("settings: lys-wm's %s takes no colours", path)
+			}
+			return newBorderEditor(k, s, colors)
+		}
 	})
+}
+
+// wmPaletteRow is the palette row: the names the user gives, which lys-wm
+// sets over its built-in ones.
+func wmPaletteRow() rowSpec {
+	return wmField("palette", func(r *rowSpec) {
+		r.fullWidth = true
+		r.editor = func(k *kit, s slot, _ config.FieldMeta) control {
+			return newListEditor(k, wmOwnPalette(k.wm, s), stringMapSpec())
+		}
+	})
+}
+
+// wmOwnPalette is the palette without the built-in names it holds
+// unchanged, so writing it back never pins lys-wm's own colours.
+func wmOwnPalette(w *wmBackend, s slot) slot {
+	builtIn, _ := w.defaultOf("palette")
+	return slot{
+		get: func() any {
+			own := map[string]any{}
+			for name, v := range asMap(s.get()) {
+				if asMap(builtIn)[name] != v {
+					own[name] = v
+				}
+			}
+			return own
+		},
+		set: func(v any) error {
+			if len(asMap(v)) == 0 {
+				s.unset()
+				return nil
+			}
+			return s.set(v)
+		},
+		unset: s.unset,
+	}
 }

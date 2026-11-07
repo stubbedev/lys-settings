@@ -7,8 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
@@ -521,6 +523,54 @@ func newSecretEditor(k *kit, s slot, optional bool) *text {
 	return c
 }
 
+// wmAccent is the palette name lys-wm gives the desktop accent, which is
+// lys-shell's accent (docs/guide/how-it-works.md, One accent).
+const wmAccent = "accent"
+
+// wmPalette is every name a lys-wm colour takes, with its colour: lys-wm's
+// built-in palette, the desktop accent, and the palette's own names over
+// them.
+func wmPalette(k *kit) map[string]render.Color {
+	out := map[string]render.Color{}
+	if k.wm == nil {
+		return out
+	}
+	builtIn, _ := k.wm.defaultOf("palette")
+	own, _ := k.wm.value("palette").(map[string]any)
+	add := func(names map[string]any) {
+		for name, v := range names {
+			hex, _ := v.(string)
+			if c, ok := styling.ParseHex(hex); ok {
+				out[name] = c
+			}
+		}
+	}
+	add(asMap(builtIn))
+	shell := k.palette()
+	if c, ok := shell.Token(config.TokenAccent); ok {
+		out[wmAccent] = c
+	}
+	add(own)
+	return out
+}
+
+func asMap(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}
+
+// wmColorRGB is the colour a lys-wm colour value names: a hex, or a name
+// of the palette.
+func wmColorRGB(k *kit, value string) (render.Color, bool) {
+	if c, ok := styling.ParseHex(value); ok {
+		return c, true
+	}
+	c, ok := wmPalette(k)[value]
+	return c, ok
+}
+
+// wmColorEditor is a lys-wm colour: the swatch, showing the colour a
+// palette name stands for too, and the palette's names to pick from.
 type wmColorEditor struct {
 	*widget.Box
 	slot   slot
@@ -529,9 +579,17 @@ type wmColorEditor struct {
 }
 
 func newWMColorEditor(k *kit, s slot) *wmColorEditor {
-	c := &wmColorEditor{Box: gapBox(widget.Row), slot: s, swatch: colorButton(k, s)}
-	names := wmPaletteNames(k)
-	c.names = newChoiceEditor(k, s, choiceSpec{list: func() []choice { return names }, free: true})
+	shown := slot{
+		get: func() any {
+			if c, ok := wmColorRGB(k, s.text()); ok {
+				return styling.HexRGBA(c)
+			}
+			return s.get()
+		},
+		set: s.set, unset: s.unset,
+	}
+	c := &wmColorEditor{Box: gapBox(widget.Row), slot: s, swatch: colorButton(k, shown)}
+	c.names = newChoiceEditor(k, s, choiceSpec{list: func() []choice { return wmPaletteNames(k) }, free: true})
 	c.AppendAligned(c.swatch, false, widget.AlignCenter)
 	c.AppendAligned(c.names, false, widget.AlignCenter)
 	c.refresh()
@@ -542,20 +600,14 @@ func (c *wmColorEditor) dirtyBadge() *widget.Badge { return c.names.dirtyBadge()
 
 func (c *wmColorEditor) refresh() {
 	c.names.refresh()
-	if strings.HasPrefix(c.slot.text(), "#") {
-		c.swatch.refresh()
-	}
+	c.swatch.refresh()
 }
 
 func wmPaletteNames(k *kit) []choice {
-	if k.wm == nil {
-		return nil
-	}
-	palette, _ := k.wm.value("palette").(map[string]any)
+	palette := wmPalette(k)
 	out := make([]choice, 0, len(palette))
-	for name, v := range palette {
-		hex, _ := v.(string)
-		out = append(out, choice{value: name, label: name, group: hex})
+	for name, c := range palette {
+		out = append(out, choice{value: name, label: name, group: styling.HexRGBA(c)})
 	}
 	return sortedChoices(out)
 }

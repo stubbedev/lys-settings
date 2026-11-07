@@ -25,12 +25,12 @@ const wmSchema = `{"type":"object","properties":{
 "binds":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string"},"chord":{"type":"string"},"flags":{"type":"array","items":{"type":"string","enum":["locked","repeating"]}}},"additionalProperties":false}},
 "submaps":{"type":"object","additionalProperties":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string"},"chord":{"type":"string"}},"additionalProperties":false}}},
 "rules":{"type":"array","items":{"type":"object","properties":{"app_id":{"type":"string"},"float":{"type":"boolean"},"look":{"type":"object","properties":{"grain":{"type":"number"}}}}}},
-"borders":{"type":"object","properties":{"active":{"oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","items":{"type":"string"}}}}]}}},
+"borders":{"type":"object","properties":{"active":{"default":"accent","oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string"}}}}]}}},
 "decoration":{"type":"object","properties":{"active_opacity":{"type":"number","minimum":0,"maximum":1,"default":1},"shadow":{"type":"object","properties":{"color":{"type":"string","format":"lys-wm-color","default":"#00000060"}}}}},
 "input":{"type":"object","properties":{"touchpad":{"type":"object","properties":{"tap":{"type":"boolean"},"click_method":{"type":"string","enum":["none","clickfinger"]}}},
 "keyboard":{"type":"object","properties":{"layout":{"type":"string","format":"lys-wm-xkb-layout"},"variant":{"type":"string","format":"lys-wm-xkb-variant"},"options":{"type":"string","format":"lys-wm-xkb-options"},"model":{"type":"string","format":"lys-wm-xkb-model"},"rules":{"type":"string","format":"lys-wm-xkb-rules"}}}}},
 "gpu":{"type":"string","format":"lys-wm-drm-device"},
-"palette":{"type":"object","additionalProperties":{"type":"string"}},
+"palette":{"type":"object","additionalProperties":{"type":"string"},"default":{"red":"#f38ba8","blue":"#89b4fa"}},
 "tabs":{"type":"object","properties":{"font":{"type":"string","format":"lys-wm-font-file"},"icon_theme":{"type":"string","format":"lys-wm-icon-theme"},"label":{"type":"string"}}}}}`
 
 const wmBuiltIn = "binds:\n  - {chord: SUPER + Q, action: kill}\n"
@@ -867,7 +867,7 @@ func TestAWMColorTakesAHexOrAPaletteName(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 	p := openChoices(t, k, c.names)
-	if !slices.Equal(p.all, []string{"accent"}) {
+	if !slices.Equal(p.all, []string{"blue", "red", "accent"}) {
 		t.Fatalf("offered %q", p.all)
 	}
 	pickName(t, p, "accent")

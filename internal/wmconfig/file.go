@@ -260,11 +260,9 @@ func (f *File) attempt(edits []Edit) (Reload, bool, error) {
 	if err != nil {
 		return Unchanged, existenceChanged(err), err
 	}
-	next := current
-	for _, e := range edits {
-		if next, err = ApplyEdit(next, e); err != nil {
-			return Unchanged, false, err
-		}
+	next, err := applyEdits(current, edits)
+	if err != nil {
+		return Unchanged, false, err
 	}
 	if bytes.Equal(next, current) {
 		return Unchanged, false, nil
@@ -284,6 +282,16 @@ func (f *File) attempt(edits []Edit) (Reload, bool, error) {
 	}
 	reload, err := f.reload()
 	return reload, false, err
+}
+
+func applyEdits(src []byte, edits []Edit) ([]byte, error) {
+	var err error
+	for _, e := range edits {
+		if src, err = ApplyEdit(src, e); err != nil {
+			return nil, err
+		}
+	}
+	return src, nil
 }
 
 func (f *File) current(t target) ([]byte, error) {
@@ -417,12 +425,14 @@ const (
 
 // Field is one key of the schema.
 type Field struct {
-	Kind       Kind
-	Format     string
-	Variants   []string
-	Min, Max   float64
-	Default    any
-	HasDefault bool
+	Kind     Kind
+	Format   string
+	Variants []string
+	Min, Max float64
+	// MinItems and MaxItems bound how many items a list takes.
+	MinItems, MaxItems int
+	Default            any
+	HasDefault         bool
 }
 
 // Schema is lys-wm's config schema, parsed at the boundary.
@@ -435,6 +445,8 @@ type schemaNode struct {
 	Minimum          *float64               `json:"minimum"`
 	ExclusiveMinimum *float64               `json:"exclusiveMinimum"`
 	Maximum          *float64               `json:"maximum"`
+	MinItems         *int                   `json:"minItems"`
+	MaxItems         *int                   `json:"maxItems"`
 	Default          *json.RawMessage       `json:"default"`
 	OneOf            []*schemaNode          `json:"oneOf"`
 	Properties       map[string]*schemaNode `json:"properties"`
@@ -516,7 +528,7 @@ func (s *Schema) node(path []string) (*schemaNode, bool) {
 		case key == Each:
 			child = node.Values
 		default:
-			child = node.Properties[key]
+			child = node.property(key)
 		}
 		if child == nil {
 			return nil, false
@@ -527,10 +539,10 @@ func (s *Schema) node(path []string) (*schemaNode, bool) {
 }
 
 func (n *schemaNode) field() (Field, bool) {
-	f := Field{Min: -unboundedInt, Max: unboundedInt, Format: n.Format}
+	f := Field{Min: -unboundedInt, Max: unboundedInt, MaxItems: unboundedInt, Format: n.Format}
 	switch {
 	case len(n.OneOf) > 0 || n.Type == "object" || n.Type == "array":
-		return Field{Kind: Composite}, true
+		f.Kind = Composite
 	case len(n.Enum) > 0:
 		f.Kind, f.Variants = Enum, slices.Clone(n.Enum)
 	case n.Type == "boolean":
@@ -553,6 +565,12 @@ func (n *schemaNode) field() (Field, bool) {
 	if n.Maximum != nil {
 		f.Max = *n.Maximum
 	}
+	if n.MinItems != nil {
+		f.MinItems = *n.MinItems
+	}
+	if n.MaxItems != nil {
+		f.MaxItems = *n.MaxItems
+	}
 	if n.Default != nil {
 		var v any
 		if err := json.Unmarshal(*n.Default, &v); err != nil {
@@ -564,7 +582,8 @@ func (n *schemaNode) field() (Field, bool) {
 }
 
 // Normal is a value as an editor of this key expects it: whole numbers as
-// int64 and the others as float64, whichever form the file wrote.
+// int64 and the others as float64, whichever form the file wrote, and a
+// list or mapping as the file's decoder reads it.
 func (f Field) Normal(v any) any {
 	switch f.Kind {
 	case Int:
@@ -588,7 +607,25 @@ func (f Field) Normal(v any) any {
 		case float64:
 			return strconv.FormatFloat(n, 'g', -1, 64)
 		}
-	case Composite, Bool, Enum:
+	case Composite:
+		if out, err := normal(v); err == nil {
+			return out
+		}
+	case Bool, Enum:
 	}
 	return v
+}
+
+// property is the key of an object, or of the object form of a key that
+// takes either of two forms.
+func (n *schemaNode) property(key string) *schemaNode {
+	if child, ok := n.Properties[key]; ok {
+		return child
+	}
+	for _, form := range n.OneOf {
+		if child, ok := form.Properties[key]; ok {
+			return child
+		}
+	}
+	return nil
 }
