@@ -681,3 +681,34 @@ func TestNormalGivesEditorsTheTypeTheyExpect(t *testing.T) {
 		}
 	}
 }
+
+func TestSchemaReachesListItemsAndMappingValues(t *testing.T) {
+	s, err := ParseSchema([]byte(`{"type":"object","properties":{
+	"outputs":{"type":"array","items":{"type":"object","properties":{"scale":{"type":"number"},"match":{"type":"string"}},"additionalProperties":false}},
+	"submaps":{"type":"object","additionalProperties":{"type":"array","items":{"type":"object","properties":{"chord":{"type":"string"},"flags":{"type":"array","items":{"type":"string","enum":["locked"]}}}}}},
+	"env":{"type":"object","additionalProperties":{"type":"string"}},
+	"closed":{"type":"object","properties":{"a":{"type":"string"}},"additionalProperties":false}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f, ok := s.Field([]string{"outputs", Each, "scale"}); !ok || f.Kind != Float {
+		t.Errorf("outputs.[].scale: %+v %v", f, ok)
+	}
+	if keys, ok := s.Keys([]string{"outputs", Each}); !ok || !slices.Equal(keys, []string{"match", "scale"}) {
+		t.Errorf("an output's keys: %v %v", keys, ok)
+	}
+	if f, ok := s.Field([]string{"submaps", Each, Each, "flags", Each}); !ok || f.Kind != Enum || !slices.Equal(f.Variants, []string{"locked"}) {
+		t.Errorf("a submap bind's flag: %+v %v", f, ok)
+	}
+	if f, ok := s.Field([]string{"env", Each}); !ok || f.Kind != Text {
+		t.Errorf("an env value: %+v %v", f, ok)
+	}
+	for _, path := range [][]string{{"closed", Each}, {"env", Each, Each}, {"outputs", "scale"}} {
+		if _, ok := s.Field(path); ok {
+			t.Errorf("%v names a key", path)
+		}
+	}
+	if _, ok := s.Keys([]string{"env"}); ok {
+		t.Error("a mapping without keys of its own lists some")
+	}
+}

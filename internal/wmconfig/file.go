@@ -438,7 +438,34 @@ type schemaNode struct {
 	Default          *json.RawMessage       `json:"default"`
 	OneOf            []*schemaNode          `json:"oneOf"`
 	Properties       map[string]*schemaNode `json:"properties"`
+	Items            *schemaNode            `json:"items"`
+	// Values is a mapping's additionalProperties when it is a schema; the
+	// JSON boolean form, which says only whether other keys are allowed,
+	// leaves it nil.
+	Values *schemaNode `json:"-"`
 }
+
+// UnmarshalJSON reads additionalProperties, which is a boolean or a schema.
+func (n *schemaNode) UnmarshalJSON(data []byte) error {
+	type plain schemaNode
+	var raw struct {
+		*plain
+		Additional json.RawMessage `json:"additionalProperties"`
+	}
+	raw.plain = (*plain)(n)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if len(raw.Additional) == 0 || raw.Additional[0] != '{' {
+		return nil
+	}
+	n.Values = &schemaNode{}
+	return json.Unmarshal(raw.Additional, n.Values)
+}
+
+// Each is the path segment naming every item of a list or every value of a
+// mapping, as in outputs.[].scale.
+const Each = "[]"
 
 // ParseSchema reads what lys-wm --config-schema prints.
 func ParseSchema(data []byte) (*Schema, error) {
@@ -462,15 +489,41 @@ const (
 
 // Field finds the key at path; false when this lys-wm has no such key.
 func (s *Schema) Field(path []string) (Field, bool) {
+	node, ok := s.node(path)
+	if !ok {
+		return Field{}, false
+	}
+	return node.field()
+}
+
+// Keys lists, sorted, the keys of the object at path; false when path names
+// no object with keys of its own.
+func (s *Schema) Keys(path []string) ([]string, bool) {
+	node, ok := s.node(path)
+	if !ok || len(node.Properties) == 0 {
+		return nil, false
+	}
+	return slices.Sorted(maps.Keys(node.Properties)), true
+}
+
+func (s *Schema) node(path []string) (*schemaNode, bool) {
 	node := s.root
 	for _, key := range path {
-		child, ok := node.Properties[key]
-		if !ok {
-			return Field{}, false
+		var child *schemaNode
+		switch {
+		case key == Each && node.Items != nil:
+			child = node.Items
+		case key == Each:
+			child = node.Values
+		default:
+			child = node.Properties[key]
+		}
+		if child == nil {
+			return nil, false
 		}
 		node = child
 	}
-	return node.field()
+	return node, true
 }
 
 func (n *schemaNode) field() (Field, bool) {
