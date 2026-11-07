@@ -37,6 +37,15 @@ Asking the installed binary means a key an older lys-wm lacks is refused by that
 lys-wm, rather than being written for a reload to reject. `lys-wmctl reload` exits 3
 when no lys-wm answers, which the app reports as "saved, for the next one".
 
+## One accent
+
+The accent is lys-shell's `styling.palette.primary` and nothing else. lys-shell
+serves it as xdg-desktop-portal's `accent-color`, and lys-wm's `accent` palette
+colour, which its focus border and active tab default to, follows that setting
+live. Picking an accent here therefore recolours lys-wm's focus border without a
+reload and without a second row. A `borders.active` or `palette.accent` set on
+the lys-wm pages still wins.
+
 ## The launcher
 
 lys-shell's launcher runs `lys-settings --list-pages`, which prints the pages as JSON
