@@ -21,7 +21,10 @@ import (
 const wmSchema = `{"type":"object","properties":{
 "gaps":{"type":"object","properties":{"inner":{"type":"integer","minimum":0,"default":8},"outer":{"oneOf":[{"type":"integer"},{"type":"array"}]}}},
 "tearing":{"type":"boolean","default":false},
-"binds":{"type":"array"},
+"binds":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string"},"chord":{"type":"string"},"flags":{"type":"array","items":{"type":"string","enum":["locked","repeating"]}}},"additionalProperties":false}},
+"submaps":{"type":"object","additionalProperties":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string"},"chord":{"type":"string"}},"additionalProperties":false}}},
+"rules":{"type":"array","items":{"type":"object","properties":{"app_id":{"type":"string"},"float":{"type":"boolean"},"look":{"type":"object","properties":{"grain":{"type":"number"}}}}}},
+"borders":{"type":"object","properties":{"active":{"oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","items":{"type":"string"}}}}]}}},
 "decoration":{"type":"object","properties":{"active_opacity":{"type":"number","minimum":0,"maximum":1,"default":1},"shadow":{"type":"object","properties":{"color":{"type":"string","format":"lys-wm-color","default":"#00000060"}}}}},
 "input":{"type":"object","properties":{"touchpad":{"type":"object","properties":{"tap":{"type":"boolean"},"click_method":{"type":"string","enum":["none","clickfinger"]}}},
 "keyboard":{"type":"object","properties":{"layout":{"type":"string","format":"lys-wm-xkb-layout"},"variant":{"type":"string","format":"lys-wm-xkb-variant"},"options":{"type":"string","format":"lys-wm-xkb-options"},"model":{"type":"string","format":"lys-wm-xkb-model"},"rules":{"type":"string","format":"lys-wm-xkb-rules"}}}}},
@@ -411,21 +414,127 @@ func TestAnOptionalToggleWritesABoolAndUnsets(t *testing.T) {
 	}
 }
 
-func TestAYAMLRowAppliesAWholeValue(t *testing.T) {
-	const declared = "# keep\nbinds:\n  - {chord: SUPER + Q, action: kill}\ntearing: true\n"
+func TestBindsAreCardsWithAFilter(t *testing.T) {
+	const declared = "# keep\nbinds:\n  - {chord: SUPER + Q, action: kill}\n  - {chord: SUPER + F, action: fullscreen, flags: [locked]}\ntearing: true\n"
 	k, w, _, files := wmKit(t, declared)
-	c := fieldControl(k, w, wmYAML("binds", 4)).(*yamlEditor)
-	if !strings.Contains(c.area.Text(), "SUPER + Q") {
-		t.Fatalf("shows %q", c.area.Text())
+	c := fieldControl(k, w, wmObjects("binds", "chord")).(*cardList)
+	if len(c.cards) != 2 || c.cards[1].title.Text() != "SUPER + F" {
+		t.Fatalf("%d cards, the second titled %q", len(c.cards), c.cards[1].title.Text())
 	}
-	c.area.SetText("binds:\n  - chord: SUPER + X\n    action: exit\n")
-	c.apply()
+	c.filter.SetText("full")
+	if c.cards[0].root.Visible() || !c.cards[1].root.Visible() {
+		t.Fatal("the filter shows the kill bind or hides the fullscreen one")
+	}
+	c.filter.SetText("locked super")
+	if c.cards[0].root.Visible() || !c.cards[1].root.Visible() {
+		t.Fatal("every word must match some value, a flag included")
+	}
+	c.filter.SetText("")
+	if !c.cards[0].root.Visible() {
+		t.Fatal("an empty filter hides cards")
+	}
+	if err := c.fieldSlot(0, "action").set("exit"); err != nil {
+		t.Fatal(err)
+	}
 	got := fileText(t, files.runtime)
-	if !strings.Contains(got, "SUPER + X") || strings.Contains(got, "SUPER + Q") || strings.Contains(got, "tearing") {
+	if !strings.Contains(got, "exit") || !strings.Contains(got, "fullscreen") || strings.Contains(got, "tearing") {
 		t.Fatalf("%q", got)
 	}
 	if fileText(t, files.config) != declared {
 		t.Fatal("the config changed")
+	}
+}
+
+func TestARulesNestedObjectAndToggleWriteInsideTheItem(t *testing.T) {
+	k, w, _, files := wmKit(t, "rules:\n  - {app_id: foot}\n")
+	c := fieldControl(k, w, wmObjects("rules", "app_id")).(*cardList)
+	if len(c.spec.fields) != 3 {
+		t.Fatalf("%d fields, want app_id, float and look.grain", len(c.spec.fields))
+	}
+	if _, ok := c.cards[0].controls[1].(*optionalEnum); !ok {
+		t.Fatalf("a rule's float takes %T, want the inherit-or-pick select", c.cards[0].controls[1])
+	}
+	grain := nestedSlot(c.fieldSlot(0, "look"), []string{"grain"})
+	if err := grain.set(0.5); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileText(t, files.runtime); !strings.Contains(got, "grain: 0.5") || !strings.Contains(got, "app_id: foot") {
+		t.Fatalf("%q", got)
+	}
+	grain.unset()
+	if _, ok := c.local[0]["look"]; ok {
+		t.Error("dropping the last nested key left an empty object")
+	}
+}
+
+func TestSubmapsAreNamedCardsOfBinds(t *testing.T) {
+	k, w, _, files := wmKit(t, "submaps:\n  resize:\n    - {chord: Left, action: resizeactive -20 0}\n  apps:\n    - {chord: F, action: exec firefox}\n")
+	c := fieldControl(k, w, wmSubmaps()).(*cardList)
+	if len(c.local) != 2 || c.local[0]["name"] != "apps" || c.local[1]["name"] != "resize" {
+		t.Fatalf("submaps %v, want apps then resize", c.local)
+	}
+	if err := c.fieldSlot(0, "name").set("launch"); err != nil {
+		t.Fatal(err)
+	}
+	got := fileText(t, files.runtime)
+	if !strings.Contains(got, "launch:") || strings.Contains(got, "apps:") || !strings.Contains(got, "resize:") {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestOuterGapsWriteOneNumberOrFour(t *testing.T) {
+	k, w, _, files := wmKit(t, "")
+	c := fieldControl(k, w, wmSides("gaps.outer")).(*sidesEditor)
+	if c.on.On() {
+		t.Fatal("an unset gap shows overridden")
+	}
+	c.on.SetOn(true)
+	c.spins[0].SetValue(4)
+	c.spins[0].OnValueChanged(4)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "outer:") || !strings.Contains(got, "- 4") {
+		t.Fatalf("one side changed: %q", got)
+	}
+	for _, s := range c.spins {
+		s.SetValue(6)
+	}
+	c.write(0)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "outer: 6") {
+		t.Fatalf("equal sides: %q", got)
+	}
+	c.on.SetOn(false)
+	if got := fileText(t, files.runtime); strings.Contains(got, "outer") {
+		t.Fatalf("inheriting kept %q", got)
+	}
+}
+
+func TestABorderIsAColourOrAGradient(t *testing.T) {
+	k, w, _, files := wmKit(t, "")
+	c := fieldControl(k, w, wmBorder("borders.active")).(*borderEditor)
+	if err := c.write([]any{"blue"}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileText(t, files.runtime); !strings.Contains(got, "active: blue") {
+		t.Fatalf("one colour: %q", got)
+	}
+	c.refresh()
+	if c.angled.Visible() {
+		t.Error("one colour shows a gradient's angle")
+	}
+	if err := c.write([]any{"mauve", "blue"}, 45); err != nil {
+		t.Fatal(err)
+	}
+	c.refresh()
+	if got := fileText(t, files.runtime); !strings.Contains(got, "angle: 45") || !strings.Contains(got, "mauve") || !c.angled.Visible() {
+		t.Fatalf("a gradient: %q", got)
+	}
+	if colors, angle := c.parts(); len(colors) != 2 || angle != 45 {
+		t.Errorf("parts %v %v", colors, angle)
+	}
+	if err := c.write(nil, 45); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileText(t, files.runtime); strings.Contains(got, "active") {
+		t.Fatalf("no colour kept %q", got)
 	}
 }
 
@@ -637,7 +746,7 @@ func TestTheWMPagesAppearOnlyWithLysWMInstalled(t *testing.T) {
 
 func TestAWMPageBuildsItsRowsAndStatus(t *testing.T) {
 	k, _, _, _ := wmKit(t, "")
-	spec := wmPage("wm-test", "ld-monitor-symbolic", sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner"), wmYAML("gaps.outer", 1)}})
+	spec := wmPage("wm-test", "ld-monitor-symbolic", sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner"), wmSides("gaps.outer")}})
 	page := buildPage(k, spec)
 	if len(page.rows) != 2 || page.status == nil {
 		t.Fatalf("%d rows, status %v", len(page.rows), page.status)

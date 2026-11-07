@@ -31,6 +31,7 @@ settings-icon-clear = Clear icon
 settings-icon-search = Search icons...
 settings-list-add = Add
 settings-list-remove = Remove
+settings-list-filter = Filter
 settings-list-move-up = Move up
 settings-list-move-down = Move down
 settings-browse-file = Choose a file

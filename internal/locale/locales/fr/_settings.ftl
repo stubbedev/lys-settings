@@ -302,6 +302,7 @@ settings-inherit = Hériter (par défaut)
 settings-icon-clear = Effacer l'icône
 settings-list-add = Ajouter
 settings-list-remove = Supprimer
+settings-list-filter = Filtrer
 settings-list-move-up = Monter
 settings-list-move-down = Descendre
 settings-browse-file = Choisir un fichier

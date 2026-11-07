@@ -4,6 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stubbedev/lys-shell/shell/treetest"
+	"github.com/stubbedev/lys-ui/widget"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 	"github.com/stubbedev/lys-settings/internal/wmconfig"
 )
 
@@ -39,5 +43,32 @@ func TestNoWMRowFallsBackToPlainText(t *testing.T) {
 	k.wm = w
 	if got := plainTextRows(t, k, w, allWMRows()); len(got) > 0 {
 		t.Fatalf("lys-wm rows on the plain text editor: %v", got)
+	}
+}
+
+func TestEveryWMRowBuildsWithLabelsAgainstTheInstalledLysWM(t *testing.T) {
+	if os.Getenv("LYS_SETTINGS_HEADLESS") == "" {
+		t.Skip("needs the dev shell's lys-wm; set by `just test`")
+	}
+	k := testKit(t, "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	w, err := openWM(k, wmconfig.Exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k.wm = w
+	tr := locale.T()
+	for _, r := range allWMRows() {
+		treetest.Walk(fieldControl(k, w, r), func(x widget.Widget) {
+			c, ok := x.(*cardList)
+			if !ok {
+				return
+			}
+			for _, f := range c.spec.fields {
+				if !tr.Has(f.label) {
+					t.Errorf("%s: no message %s", r.path, f.label)
+				}
+			}
+		})
 	}
 }

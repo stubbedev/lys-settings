@@ -177,7 +177,10 @@ type textItem struct{ *widget.Entry }
 func (t textItem) itemValue() any { return t.Text() }
 
 // stringList is string_list::string_list.
-var stringList = listRow(func(config.FieldMeta) listSpec {
+var stringList = listRow(func(config.FieldMeta) listSpec { return stringListSpec() })
+
+// stringListSpec is a list of words, an entry per item.
+func stringListSpec() listSpec {
 	return listSpec{
 		addKey: "settings-list-add", rowClass: "string-list-row", reorder: true, blank: "",
 		item: func(k *kit, v any, changed func()) listItem {
@@ -188,7 +191,7 @@ var stringList = listRow(func(config.FieldMeta) listSpec {
 			return textItem{e}
 		},
 	}
-})
+}
 
 // iconItem is an icon_list row: the icon picker over the item.
 type iconItem struct {

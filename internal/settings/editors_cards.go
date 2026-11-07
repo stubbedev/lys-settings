@@ -1,9 +1,12 @@
 package settings
 
 import (
+	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
@@ -56,6 +59,8 @@ type cardSpec struct {
 	keep     func(item map[string]any) bool
 	clean    func(item map[string]any) map[string]any
 	unique   string
+	// searchable heads the cards with a filter over the items' values.
+	searchable bool
 	// addKey labels the add button's tooltip (settings-list-add).
 	addKey   string
 	chrome   *cardChrome
@@ -75,9 +80,13 @@ type cardList struct {
 	list  *widget.Box
 	local []map[string]any
 	cards []*card
+	// filter narrows the cards shown to those matching it; nil when the
+	// list is not searchable.
+	filter *widget.SearchEntry
 }
 
 type card struct {
+	root     *widget.Box
 	title    *widget.Label
 	identity control
 	controls []control
@@ -86,6 +95,12 @@ type card struct {
 func newCardList(k *kit, s slot, spec cardSpec) *cardList {
 	c := &cardList{Box: gapBox(widget.Column), k: k, slot: s, spec: spec}
 	c.AddClass(append([]string{"card-form-editor"}, spec.classes...)...)
+	if spec.searchable {
+		c.filter = widget.NewSearchEntry(k.face, k.textPx(), locale.T().Get("settings-list-filter"))
+		c.filter.SetDelay(0)
+		c.filter.OnSearchChanged = func(string) { c.applyFilter() }
+		c.Append(c.filter, false)
+	}
 	c.list = gapBox(widget.Column)
 	c.list.AddClass(spec.listCls)
 	c.Append(c.list, false)
@@ -171,6 +186,42 @@ func (c *cardList) rebuild() {
 		c.appendCard(i)
 	}
 	c.validate()
+	c.applyFilter()
+}
+
+// applyFilter shows the cards with a value containing every word of the
+// filter, all of them while it is empty.
+func (c *cardList) applyFilter() {
+	if c.filter == nil {
+		return
+	}
+	c.filter.SetVisible(len(c.cards) > 0)
+	words := strings.Fields(strings.ToLower(c.filter.Text()))
+	for i, cd := range c.cards {
+		text := strings.ToLower(itemText(c.local[i]))
+		cd.root.SetVisible(!slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(text, w) }))
+	}
+}
+
+// itemText is every value of an item, nested ones included, in key order.
+func itemText(v any) string {
+	switch v := v.(type) {
+	case map[string]any:
+		parts := make([]string, 0, len(v))
+		for _, key := range slices.Sorted(maps.Keys(v)) {
+			parts = append(parts, itemText(v[key]))
+		}
+		return strings.Join(parts, " ")
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, it := range v {
+			parts = append(parts, itemText(it))
+		}
+		return strings.Join(parts, " ")
+	case nil:
+		return ""
+	}
+	return fmt.Sprint(v)
 }
 
 // appendCard is card or card_titled with the fields in its body, every
@@ -221,7 +272,8 @@ func (c *cardList) appendCard(i int) {
 		body.Append(row, false)
 		cd.controls = append(cd.controls, ctl)
 	}
-	c.list.Append(sectionCard(header, body, chrome.card), false)
+	cd.root = sectionCard(header, body, chrome.card)
+	c.list.Append(cd.root, false)
 	c.cards = append(c.cards, cd)
 	c.retitle(i)
 }

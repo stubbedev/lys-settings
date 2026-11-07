@@ -356,11 +356,6 @@ func wmFields(paths ...string) []rowSpec {
 	return rows
 }
 
-func wmYAML(path string, minLines int) rowSpec {
-	keys := wmPath(path)
-	return wmField(path, yamlRow(keys[len(keys)-1], minLines))
-}
-
 func wmPage(id, icon string, sections ...sectionSpec) pageSpec {
 	return pageSpec{id: id, navKey: "settings-nav-" + id, icon: icon, header: "settings-page-" + id, wm: true, sections: sections}
 }
@@ -369,8 +364,8 @@ func wmPage(id, icon string, sections ...sectionSpec) pageSpec {
 func wmSections() []navSection {
 	return []navSection{{key: "settings-nav-wm", pages: []pageSpec{
 		wmPage("wm-windows", "ld-app-window-symbolic",
-			sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner"), wmYAML("gaps.outer", 1)}},
-			sectionSpec{"wm-section-borders", []rowSpec{wmField("borders.width"), wmYAML("borders.active", 2), wmYAML("borders.inactive", 2)}},
+			sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner"), wmSides("gaps.outer")}},
+			sectionSpec{"wm-section-borders", []rowSpec{wmField("borders.width"), wmBorder("borders.active"), wmBorder("borders.inactive")}},
 			sectionSpec{"wm-section-corners", wmFields("decoration.rounding", "decoration.active_opacity", "decoration.inactive_opacity", "decoration.fullscreen_opacity", "decoration.dim_inactive", "decoration.dim_strength")},
 		),
 		wmPage("wm-effects", "ld-droplets-symbolic",
@@ -392,17 +387,22 @@ func wmSections() []navSection {
 			sectionSpec{"wm-section-touchpad", wmFields("input.touchpad.tap", "input.touchpad.drag_lock", "input.touchpad.natural_scroll", "input.touchpad.disable_while_typing", "input.touchpad.middle_emulation", "input.touchpad.click_method", "input.touchpad.scroll_method", "input.touchpad.accel_profile", "input.touchpad.accel_speed", "input.touchpad.scroll_factor")},
 		),
 		wmPage("wm-binds", "ld-key-round-symbolic",
-			sectionSpec{"wm-section-binds", []rowSpec{wmYAML("binds", 16), wmYAML("submaps", 6), wmYAML("gestures", 6)}},
+			sectionSpec{"wm-section-binds", []rowSpec{wmObjects("binds", "chord")}},
+			sectionSpec{"wm-section-submaps", []rowSpec{wmSubmaps()}},
+			sectionSpec{"wm-section-gestures", []rowSpec{
+				wmObjects("gestures.swipe", "fingers", "direction", "modifiers"), wmObjects("gestures.pinch", "fingers", "direction", "modifiers"),
+				wmObjects("gestures.hold", "fingers", "modifiers"), wmField("gestures.distance"),
+			}},
 		),
 		wmPage("wm-outputs", "ld-monitor-symbolic",
-			sectionSpec{"wm-section-outputs", []rowSpec{wmYAML("outputs", 8)}},
+			sectionSpec{"wm-section-outputs", []rowSpec{wmObjects("outputs", "match")}},
 			sectionSpec{"wm-section-display", wmFields("color_management", "tearing", "gpu", "lid_suspend")},
 		),
 		wmPage("wm-session", "ld-power-symbolic",
-			sectionSpec{"wm-section-rules", []rowSpec{wmYAML("rules", 8)}},
-			sectionSpec{"wm-section-start", []rowSpec{wmYAML("autostart", 4), wmYAML("env", 6)}},
+			sectionSpec{"wm-section-rules", []rowSpec{wmObjects("rules", "app_id", "title", "tag")}},
+			sectionSpec{"wm-section-start", []rowSpec{wmField("autostart", stringList), wmField("env", stringMap)}},
 			sectionSpec{"wm-section-xwayland", wmFields("xwayland.enabled", "xwayland.zero_scaling")},
-			sectionSpec{"wm-section-palette", []rowSpec{wmYAML("palette", 4)}},
+			sectionSpec{"wm-section-palette", []rowSpec{wmField("palette", stringMap)}},
 		),
 	}}}
 }
