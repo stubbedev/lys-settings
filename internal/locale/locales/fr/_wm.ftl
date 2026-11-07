@@ -275,6 +275,7 @@ wm-outputs-position = Position
 wm-outputs-scale = Échelle
 wm-outputs-sdr-brightness = Luminosité SDR
 wm-outputs-shader = Shader
+wm-outputs-vrr = Fréquence de rafraîchissement variable
 wm-rules-app-id = ID d'application
 wm-rules-blur = Flou
 wm-rules-blur-look-brightness = Luminosité du flou
