@@ -44,6 +44,7 @@ type kit struct {
 	// background runs blocking work off the loop (a D-Bus query);
 	// nil runs it in place, the tests' synchronous loop.
 	background func(func())
+	copySecret func(text string) error
 }
 
 // async runs work off the loop and hands its result to done on it.

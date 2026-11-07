@@ -9,6 +9,7 @@ import (
 
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/logging"
+	"github.com/stubbedev/lys-shell/service/clipboard"
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/widget"
@@ -112,6 +113,13 @@ func Run(page, setting string) error {
 		ins.Bind(application)
 	}
 	k.pickers = windowPickers{app: application, win: win, theme: theme}
+	k.copySecret = func(text string) error {
+		clip := application.Clipboard()
+		if clip == nil {
+			return app.ErrClipboardUnavailable
+		}
+		return clip.WriteExpiring(clipboard.SecretContent(text), copiedSecretLife)
+	}
 	w.onResetAll = func() { confirmResetAll(application, win, k) }
 
 	// A change from any source - a row, the reset buttons, the config
