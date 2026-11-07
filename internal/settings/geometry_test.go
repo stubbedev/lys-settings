@@ -476,3 +476,27 @@ func TestSourceBadgesAreOneHeightWhateverShareTheirLine(t *testing.T) {
 		}
 	}
 }
+
+// Every segment of a segmented control holds its label centred, the label
+// its text's width, at scales 1, 1.25 and 2.
+func TestSegmentLabelsAreCentredInTheirSegments(t *testing.T) {
+	for _, scale := range []string{"1", "1.25", "2"} {
+		win := laidOutPage(t, "styling:\n  scale: "+scale+"\n", "bar-general", 1400)
+		segmented := treetest.All[*segmentedEnum](win.page)
+		if len(segmented) == 0 {
+			t.Fatal("the Bar page shows no segmented control")
+		}
+		for _, c := range segmented {
+			for _, b := range treetest.All[*widget.ToggleButton](c) {
+				l := treetest.First[*widget.Label](t, b)
+				bb, lb := b.Bounds(), l.Bounds()
+				if nat := l.Measure(widget.Row, widget.Unknown).Nat; lb.W != nat {
+					t.Errorf("scale %s: %q is laid out %dpx wide, its text %dpx", scale, l.Text(), lb.W, nat)
+				}
+				if dx, dy := (2*lb.X+lb.W)-(2*bb.X+bb.W), (2*lb.Y+lb.H)-(2*bb.Y+bb.H); dx < -1 || dx > 1 || dy < -1 || dy > 1 {
+					t.Errorf("scale %s: %q at %v is off the centre of its segment %v", scale, l.Text(), lb, bb)
+				}
+			}
+		}
+	}
+}
