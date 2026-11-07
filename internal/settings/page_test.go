@@ -34,7 +34,7 @@ func TestASectionShowsItsDescriptionOnlyWhenItHasOne(t *testing.T) {
 	k, _, _, _ := wmKit(t, "")
 	spec := wmPage("wm-test", "ld-monitor-symbolic",
 		sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner")}},
-		sectionSpec{"settings-section-general", []rowSpec{wmField("tearing")}})
+		sectionSpec{"settings-title", []rowSpec{wmField("tearing")}})
 	notes := treetest.WithClass(buildPage(k, spec), "settings-section-description")
 	if len(notes) != 1 {
 		t.Fatalf("%d section notes, want the gaps section's alone", len(notes))

@@ -321,7 +321,7 @@ func TestEveryPageBuilds(t *testing.T) {
 				if !tr.Has(sec.title) {
 					t.Errorf("%s: section title %s missing", p.id, sec.title)
 				}
-				if p.wm && !tr.HasAttr(sec.title, "description") {
+				if !tr.HasAttr(sec.title, "description") {
 					t.Errorf("%s: section %s has no description", p.id, sec.title)
 				}
 				for _, r := range sec.rows {
