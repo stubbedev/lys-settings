@@ -170,3 +170,15 @@ func TestTheKeyboardListsComeFromTheXKBRegistry(t *testing.T) {
 		t.Fatalf("no registry lists %+v", x.layouts)
 	}
 }
+
+func TestTheSoundNamesComeFromEverySoundThemesStereoDirectory(t *testing.T) {
+	home, system := t.TempDir(), t.TempDir()
+	h := fakeHost(t, map[string]string{"HOME": home, "XDG_DATA_DIRS": system})
+	put(t, filepath.Join(system, "sounds/freedesktop/stereo/message-new-instant.oga"), "")
+	put(t, filepath.Join(home, ".local/share/sounds/mine/stereo/bell.wav"), "")
+	put(t, filepath.Join(system, "sounds/freedesktop/stereo/index.theme"), "")
+	got := h.soundNames()
+	if len(got) != 2 || got[0].value != "bell" || got[1].value != "message-new-instant" {
+		t.Fatalf("sound names %+v", got)
+	}
+}

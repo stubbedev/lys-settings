@@ -21,6 +21,7 @@ var listFixtures = map[string][]choice{
 	"CursorTheme":       {{value: "Bibata", label: "Bibata Modern"}},
 	"Program":           {{value: "foot", label: "foot"}, {value: "ssh", label: "ssh"}, {value: "xdg-open", label: "xdg-open"}},
 	typeTerminal:        {{value: "foot", label: "Foot"}, {value: "kitty", label: "kitty"}},
+	listSoundNames:      {{value: "message-new-instant", label: "message-new-instant"}},
 	"NetInterface":      {{value: "eth0", label: "eth0"}, {value: "wlan0", label: "wlan0"}},
 	"TempSensor":        {{value: "Tctl", label: "Tctl", group: "k10temp"}},
 	"AudioSource":       {{value: "speakers.monitor", label: "Speakers monitor"}},

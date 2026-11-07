@@ -28,6 +28,7 @@ const (
 	wmModelFormat   = "lys-wm-xkb-model"
 	wmRulesFormat   = "lys-wm-xkb-rules"
 	typeTerminal    = "Terminal"
+	listSoundNames  = "sound-name"
 )
 
 func hostLists(h host) map[string]lister {
@@ -41,6 +42,7 @@ func hostLists(h host) map[string]lister {
 		"CursorTheme":       h.cursorThemes,
 		"Program":           h.programs,
 		typeTerminal:        h.terminals,
+		listSoundNames:      h.soundNames,
 		"NetInterface":      h.interfaces,
 		"TempSensor":        h.sensors,
 		"AudioSource":       audioSources,
@@ -165,6 +167,10 @@ func wmSibling(k *kit, path, key string) string {
 	v, _ := k.wm.value(strings.Join(keys, ".")).(string)
 	return v
 }
+
+var soundNameRow = withEditor(func(k *kit, s slot, meta config.FieldMeta) control {
+	return newChoiceEditor(k, s, choiceSpec{list: systemLists[listSoundNames], special: meta.Variants, free: true})
+})
 
 var terminalRow = withEditor(func(k *kit, s slot, meta config.FieldMeta) control {
 	return newChoiceEditor(k, s, choiceSpec{list: systemLists[typeTerminal], special: meta.Variants, free: true})

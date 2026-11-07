@@ -286,3 +286,22 @@ func (h host) xkb() xkbLists {
 	out.models, out.rules = sortedChoices(out.models), sortedChoices(out.rules)
 	return out
 }
+
+var soundExtensions = []string{".oga", ".ogg", ".wav"}
+
+func (h host) soundNames() []choice {
+	var out []choice
+	for _, data := range h.dataDirs() {
+		themes := filepath.Join(data, "sounds")
+		for _, theme := range entries(themes) {
+			for _, e := range entries(filepath.Join(themes, theme.Name(), "stereo")) {
+				ext := filepath.Ext(e.Name())
+				if slices.Contains(soundExtensions, ext) {
+					name := strings.TrimSuffix(e.Name(), ext)
+					out = append(out, choice{value: name, label: name})
+				}
+			}
+		}
+	}
+	return sortedChoices(out)
+}

@@ -36,7 +36,7 @@ func soundPage(*config.Config) pageSpec {
 		sections: []sectionSpec{{title: "settings-section-sound-alerts", rows: []rowSpec{
 			field("modules.notifications.sounds"),
 			field("modules.notifications.sound-volume", percentage),
-			field("modules.notifications.sound-default"),
+			field("modules.notifications.sound-default", soundNameRow),
 			field("modules.notifications.sound-mute-apps", stringList),
 		}}},
 	}
