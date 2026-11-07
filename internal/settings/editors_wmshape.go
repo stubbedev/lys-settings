@@ -13,46 +13,28 @@ import (
 // lys-wm keys that take one of two forms: gaps.outer, one number or one
 // per side, and a border, one colour or a gradient.
 
-// sideWidthChars fits a side's spin to a gap of up to four digits, so the
-// four sides sit on one line of the narrowest page.
-const sideWidthChars = 4
-
 // sideKeys label gaps.outer's sides in the order lys-wm lists them.
 var sideKeys = [4]string{"wm-side-top", "wm-side-right", "wm-side-bottom", "wm-side-left"}
 
-// sidesEditor is the override switch and a spin per side: equal sides
-// write one number, others the four; off leaves the key to lys-wm.
+// sidesEditor is a spin per side, all empty and reading "Inherited" while
+// lys-wm's own gap applies. Setting one side while the others are empty
+// sets them all to it; equal sides write one number, others the four, and
+// emptying any side inherits again.
 type sidesEditor struct {
 	*widget.Box
-	slot    slot
-	on      *widget.Switch
-	spins   [4]*widget.SpinButton
-	syncing bool
+	slot  slot
+	spins [4]*widget.SpinButton
 }
 
 func newSidesEditor(k *kit, s slot) *sidesEditor {
 	t := locale.T()
 	c := &sidesEditor{Box: gapBox(widget.Row), slot: s}
-	c.on = widget.NewSwitch(false)
-	c.on.AddClass("inherit-switch")
-	c.on.SetTooltip(t.Get("settings-override"))
-	c.on.OnChanged = func(on bool) {
-		c.enable(on)
-		if c.syncing {
-			return
-		}
-		if on {
-			c.write(0)
-			return
-		}
-		c.slot.unset()
-	}
-	c.AppendAligned(c.on, false, widget.AlignCenter)
 	for i := range c.spins {
 		spin := widget.NewSpinButton(k.face, k.textPx(), 0, 0, math.MaxInt32, 1, 0)
+		spin.SetOptional(t.Get("settings-inherited"))
 		spin.SetTooltip(t.Get(sideKeys[i]))
-		spin.SetWidthChars(sideWidthChars, sideWidthChars)
 		spin.OnValueChanged = c.write
+		spin.OnCleared = s.unset
 		c.spins[i] = spin
 		c.AppendAligned(spin, false, widget.AlignCenter)
 	}
@@ -60,15 +42,11 @@ func newSidesEditor(k *kit, s slot) *sidesEditor {
 	return c
 }
 
-func (c *sidesEditor) enable(on bool) {
+func (c *sidesEditor) write(v float64) {
 	for _, s := range c.spins {
-		s.SetEnabled(on)
-	}
-}
-
-func (c *sidesEditor) write(float64) {
-	if c.syncing {
-		return
+		if s.Empty() {
+			s.SetValue(v)
+		}
 	}
 	sides := make([]any, len(c.spins))
 	same := true
@@ -85,6 +63,12 @@ func (c *sidesEditor) write(float64) {
 
 func (c *sidesEditor) refresh() {
 	v := c.slot.get()
+	if v == nil {
+		for _, s := range c.spins {
+			s.Clear()
+		}
+		return
+	}
 	sides := [4]float64{}
 	switch v := v.(type) {
 	case int64:
@@ -96,13 +80,9 @@ func (c *sidesEditor) refresh() {
 			sides[i] = toFloat(v[i])
 		}
 	}
-	c.syncing = true
-	c.on.SetOn(v != nil)
-	c.enable(v != nil)
 	for i, s := range c.spins {
 		s.SetValue(sides[i])
 	}
-	c.syncing = false
 }
 
 // toFloat is a decoded YAML number as a float, 0 for anything else.

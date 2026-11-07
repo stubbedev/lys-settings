@@ -71,7 +71,6 @@ settings-layout-hidden = Barre masquée sur ce moniteur
 ## Tailles et menus déroulants
 settings-size-scale = Échelle
 settings-size-px = Pixels
-settings-override = Remplacer la valeur par défaut
 settings-dropdown-width = Largeur
     .description = Largeur du panneau. Non défini utilise la valeur par défaut
 settings-dropdown-height = Hauteur
@@ -357,6 +356,7 @@ settings-section-launcher-scripts = Modes de script
     .description = Les modes dont un script fournit les entrées
 
 settings-inherit = Hériter (par défaut)
+settings-inherited = Hérité
 settings-icon-clear = Effacer l'icône
 settings-list-add = Ajouter
 settings-list-remove = Supprimer

@@ -548,43 +548,57 @@ func TestOptionalCoordinateKeepsItsFraction(t *testing.T) {
 	const path = "modules.nightlight.latitude"
 	k := testKit(t, "")
 	c := newOptionalNumber(k, pathSlot(k.store, path), -90, 90, 0.1, 0, 4)
-	if c.on.On() || c.spin.Enabled() {
-		t.Fatal("an unset coordinate shows an active override")
+	if !c.Empty() || c.Placeholder() != locale.T().Get("settings-inherited") {
+		t.Fatal("an unset coordinate does not read as inherited")
 	}
-	c.on.SetOn(true)
-	c.spin.KeyAction(widget.KeyUp, 0)
+	c.KeyAction(widget.KeyUp, 0)
 	if v, ok := k.store.value(path).(float64); !ok || math.Abs(v-0.1) > 1e-9 {
 		t.Fatalf("a step wrote %v, want 0.1", k.store.value(path))
 	}
-	c.on.SetOn(false)
+	emptySpin(c.SpinButton)
 	if k.store.svc.Source(path) != config.SourceDefault || k.store.value(path) != nil {
-		t.Errorf("override off kept %v", k.store.value(path))
+		t.Errorf("emptying kept %v", k.store.value(path))
 	}
 }
 
-func TestOptionalNumberOverrideSwitch(t *testing.T) {
+func TestOptionalNumberInheritsUntilSet(t *testing.T) {
 	k := testKit(t, "")
-	c := newOptionalNumber(k, pathSlot(k.store, "animations.enter-duration"), 0, maxDurationMS, durationStepMS, durationFallbackMS, 0)
-	if c.on.On() || c.spin.Enabled() {
-		t.Fatal("an unset duration shows an active override")
+	const path = "animations.enter-duration"
+	c := newOptionalNumber(k, pathSlot(k.store, path), 0, maxDurationMS, durationStepMS, durationFallbackMS, 0)
+	if !c.Empty() || c.Text() != "" {
+		t.Fatalf("an unset duration shows %q", c.Text())
 	}
-	c.on.SetOn(true)
-	if v := k.store.value("animations.enter-duration"); v != int64(durationFallbackMS) || !c.spin.Enabled() {
-		t.Fatalf("override on wrote %v (spin live %v), want the fallback", v, c.spin.Enabled())
+	c.KeyAction(widget.KeyUp, 0)
+	if v := k.store.value(path); v != int64(durationFallbackMS+durationStepMS) || c.Empty() {
+		t.Fatalf("a step from inherited wrote %v, want one step past the fallback", v)
 	}
-	c.spin.KeyAction(widget.KeyUp, 0)
-	if v := k.store.value("animations.enter-duration"); v != int64(durationFallbackMS+durationStepMS) {
-		t.Errorf("a step wrote %v", v)
+	c.SelectAll()
+	c.Insert("450")
+	c.KeyAction(widget.KeyEnter, 0)
+	if v := k.store.value(path); v != int64(450) {
+		t.Errorf("typing wrote %v", v)
 	}
-	c.on.SetOn(false)
-	if k.store.svc.Source("animations.enter-duration") != config.SourceDefault || c.spin.Enabled() {
-		t.Error("override off kept the value or the live spin")
+	emptySpin(c.SpinButton)
+	if k.store.svc.Source(path) != config.SourceDefault || !c.Empty() {
+		t.Error("emptying kept the value")
 	}
-	_ = k.store.set("animations.enter-duration", int64(450))
+	_ = k.store.set(path, int64(300))
 	c.refresh()
-	if !c.on.On() || c.spin.Value() != 450 || k.store.value("animations.enter-duration") != int64(450) {
-		t.Errorf("refresh shows on=%v %v", c.on.On(), c.spin.Value())
+	if c.Empty() || c.Value() != 300 {
+		t.Fatalf("refresh shows empty %v at %v", c.Empty(), c.Value())
 	}
+	k.store.unset(path)
+	c.refresh()
+	if !c.Empty() {
+		t.Error("an outside unset left a value shown")
+	}
+}
+
+// emptySpin clears a spin's text and commits, as a user emptying it does.
+func emptySpin(s *widget.SpinButton) {
+	s.SelectAll()
+	s.Backspace()
+	s.KeyAction(widget.KeyEnter, 0)
 }
 
 func TestSizeEditorModes(t *testing.T) {
@@ -1232,9 +1246,8 @@ func TestThresholdCards(t *testing.T) {
 		t.Fatalf("new card titled %q", c.cards[0].title.Text())
 	}
 	below := c.cards[0].controls[1].(*optionalNumber)
-	below.on.SetOn(true)
-	below.spin.SetValue(20)
-	below.spin.KeyAction(widget.KeyUp, 0)
+	below.SetValue(20)
+	below.KeyAction(widget.KeyUp, 0)
 	items, _ := k.store.value(path).([]any)
 	if m, _ := items[0].(map[string]any); m["below"] != float64(21) {
 		t.Fatalf("below wrote %#v", items[0])
@@ -1251,7 +1264,7 @@ func TestThresholdCards(t *testing.T) {
 	if m, _ := items[0].(map[string]any); m["icon-color"] != "red" || m["below"] != float64(21) {
 		t.Errorf("icon color wrote %#v", items[0])
 	}
-	below.on.SetOn(false)
+	emptySpin(below.SpinButton)
 	items, _ = k.store.value(path).([]any)
 	if m, _ := items[0].(map[string]any); m["below"] != nil {
 		t.Errorf("the override switch kept below: %#v", m)
@@ -1326,26 +1339,31 @@ func TestMountPointsText(t *testing.T) {
 func TestOptionalSize(t *testing.T) {
 	k := testKit(t, "")
 	path := "dropdowns.audio.width"
-	c := fieldControl(k, k.store, dropdownSizeRows("dropdowns.audio")[0]).(*optionalSize)
-	if c.on.On() || c.size.Enabled() || k.store.value(path) != nil {
-		t.Fatal("an unset width shows an override")
+	c := fieldControl(k, k.store, dropdownSizeRows("dropdowns.audio")[0]).(*sizeEditor)
+	if !c.spin.Empty() || k.store.value(path) != nil {
+		t.Fatal("an unset width does not read as inherited")
 	}
-	c.on.SetOn(true)
-	if v := k.store.value(path); v != float64(1) || !c.size.Enabled() {
-		t.Errorf("override on wrote %#v", v)
+	c.mode.SetSelected(sizePx)
+	if k.store.value(path) != nil || !c.spin.Empty() {
+		t.Fatal("switching the mode of an inherited width wrote one")
 	}
-	c.size.mode.SetSelected(sizePx)
-	if v := k.store.value(path); v != "16px" {
-		t.Errorf("px mode wrote %#v, want 16px (a scale of 1 at the 1rem base)", v)
+	c.mode.SetSelected(sizeScale)
+	c.spin.KeyAction(widget.KeyUp, 0)
+	if v, ok := k.store.value(path).(float64); !ok || math.Abs(v-1.05) > 1e-6 {
+		t.Errorf("a step from inherited wrote %#v, want one step past a scale of 1", v)
 	}
-	c.on.SetOn(false)
-	if k.store.value(path) != nil || c.size.Enabled() {
-		t.Error("override off kept the width")
+	c.mode.SetSelected(sizePx)
+	if v := k.store.value(path); v != "17px" {
+		t.Errorf("px mode wrote %#v, want 17px (1.05 at the 1rem base)", v)
+	}
+	emptySpin(c.spin)
+	if k.store.value(path) != nil {
+		t.Error("emptying kept the width")
 	}
 	_ = k.store.set(path, "300px")
 	c.refresh()
-	if !c.on.On() || c.size.mode.Selected() != sizePx || c.size.spin.Value() != 300 {
-		t.Errorf("refresh from 300px: on %v mode %d value %v", c.on.On(), c.size.mode.Selected(), c.size.spin.Value())
+	if c.spin.Empty() || c.mode.Selected() != sizePx || c.spin.Value() != 300 {
+		t.Errorf("refresh from 300px: empty %v mode %d value %v", c.spin.Empty(), c.mode.Selected(), c.spin.Value())
 	}
 }
 

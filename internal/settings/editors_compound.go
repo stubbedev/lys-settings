@@ -62,42 +62,22 @@ func (c *optionalEnum) refresh() {
 	c.syncing = false
 }
 
-// optionalNumber is optional_number_widget: the override switch, and a
-// spin button live only while it is on. Turning it on writes the
-// spin's value (the fallback until one was set).
+// optionalNumber is an optional number as one spin button: empty and
+// reading "Inherited" while unset, a value typed or stepped (from the
+// fallback) setting it, and emptying it inheriting again.
 type optionalNumber struct {
-	*widget.Box
-	k       *kit
-	slot    slot
-	on      *widget.Switch
-	spin    *widget.SpinButton
-	whole   bool
-	syncing bool
+	*widget.SpinButton
+	k     *kit
+	slot  slot
+	whole bool
 }
 
 func newOptionalNumber(k *kit, s slot, lo, hi, step, fallback float64, digits int) *optionalNumber {
-	c := &optionalNumber{Box: gapBox(widget.Row), k: k, slot: s, whole: digits == 0}
-	c.on = widget.NewSwitch(false)
-	c.on.AddClass("inherit-switch")
-	c.on.SetTooltip(locale.T().Get("settings-override"))
-	c.spin = widget.NewSpinButton(k.face, k.textPx(), 0, lo, hi, step, digits)
-	c.spin.SetValue(fallback)
-	c.AppendAligned(c.on, false, widget.AlignCenter)
-	c.AppendAligned(c.spin, false, widget.AlignCenter)
-	c.on.OnChanged = func(on bool) {
-		c.spin.SetEnabled(on)
-		if c.syncing {
-			return
-		}
-		if on {
-			c.write(c.spin.Value())
-		} else {
-			c.slot.unset()
-		}
-	}
-	// The spin is disabled while the override is off: only a live one
-	// writes.
-	c.spin.OnValueChanged = c.write
+	c := &optionalNumber{SpinButton: widget.NewSpinButton(k.face, k.textPx(), 0, lo, hi, step, digits), k: k, slot: s, whole: digits == 0}
+	c.SetOptional(locale.T().Get("settings-inherited"))
+	c.SetValue(fallback)
+	c.OnValueChanged = c.write
+	c.OnCleared = s.unset
 	c.refresh()
 	return c
 }
@@ -113,17 +93,14 @@ func (c *optionalNumber) write(v float64) {
 }
 
 func (c *optionalNumber) refresh() {
-	v := c.slot.get()
-	c.syncing = true
-	c.on.SetOn(v != nil)
-	c.spin.SetEnabled(v != nil)
-	switch n := v.(type) {
+	switch n := c.slot.get().(type) {
 	case int64:
-		c.spin.SetValue(float64(n))
+		c.SetValue(float64(n))
 	case float64:
-		c.spin.SetValue(n)
+		c.SetValue(n)
+	default:
+		c.Clear()
 	}
-	c.syncing = false
 }
 
 // optionalSpin is number_u32_optional's row: the override switch and a
@@ -174,6 +151,10 @@ func newSizeEditor(k *kit, s slot, baseRem float64) *sizeEditor {
 		if c.syncing {
 			return
 		}
+		if c.spin.Empty() {
+			c.step(i == sizePx)
+			return
+		}
 		v := c.spin.Value()
 		if i == sizePx {
 			v = math.Round(v * c.basePx)
@@ -191,14 +172,20 @@ func newSizeEditor(k *kit, s slot, baseRem float64) *sizeEditor {
 // configure sets the spin for a mode (configure_spin_for_mode): whole
 // pixels, or a scale in hundredths, then shows v.
 func (c *sizeEditor) configure(px bool, v float64) {
+	c.step(px)
+	c.spin.SetValue(v)
+}
+
+// step sets the spin's step and digits for a mode: whole pixels, or a
+// scale in hundredths.
+func (c *sizeEditor) step(px bool) {
 	if px {
 		c.spin.SetStep(1)
 		c.spin.SetDigits(0)
-	} else {
-		c.spin.SetStep(0.05)
-		c.spin.SetDigits(2)
+		return
 	}
-	c.spin.SetValue(v)
+	c.spin.SetStep(0.05)
+	c.spin.SetDigits(2)
 }
 
 func (c *sizeEditor) commit() {
@@ -216,6 +203,10 @@ func (c *sizeEditor) refresh() {
 	c.syncing = true
 	defer func() { c.syncing = false }()
 	switch v := c.slot.get().(type) {
+	case nil:
+		c.mode.SetSelected(sizeScale)
+		c.configure(false, 1)
+		c.spin.Clear()
 	case float64:
 		c.mode.SetSelected(sizeScale)
 		c.configure(false, v)
@@ -259,50 +250,15 @@ const (
 	durationFallbackMS = 200
 )
 
-// optionalSize is dropdown_size's size_control: the override switch
-// and the size editor, live only while it is on; turning it on writes
-// the size the editor shows (a scale of 1 until one was set).
-type optionalSize struct {
-	*widget.Box
-	slot    slot
-	on      *widget.Switch
-	size    *sizeEditor
-	syncing bool
-}
-
-func newOptionalSize(k *kit, s slot, baseRem float64) *optionalSize {
-	c := &optionalSize{Box: gapBox(widget.Row), slot: s}
-	c.on = widget.NewSwitch(false)
-	c.on.AddClass("inherit-switch")
-	c.on.SetTooltip(locale.T().Get("settings-override"))
-	c.size = newSizeEditor(k, s, baseRem)
-	c.size.spin.SetValue(1)
-	c.AppendAligned(c.on, false, widget.AlignCenter)
-	c.AppendAligned(c.size, false, widget.AlignCenter)
-	c.on.OnChanged = func(on bool) {
-		c.size.SetEnabled(on)
-		if c.syncing {
-			return
-		}
-		if on {
-			c.size.commit()
-		} else {
-			s.unset()
-		}
-	}
+// newOptionalSize is dropdown_size's size_control: the size editor over
+// an optional size, its spin empty and reading "Inherited" while unset; a
+// value typed or stepped (from a scale of 1) sets it, emptying it unsets.
+func newOptionalSize(k *kit, s slot, baseRem float64) *sizeEditor {
+	c := newSizeEditor(k, s, baseRem)
+	c.spin.SetOptional(locale.T().Get("settings-inherited"))
+	c.spin.OnCleared = s.unset
 	c.refresh()
 	return c
-}
-
-func (c *optionalSize) refresh() {
-	set := c.slot.get() != nil
-	c.syncing = true
-	c.on.SetOn(set)
-	c.syncing = false
-	c.size.SetEnabled(set)
-	if set {
-		c.size.refresh()
-	}
 }
 
 // dropdownSizeRows are dropdown_size_rows for the dropdown at path:

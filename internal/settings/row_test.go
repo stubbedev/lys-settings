@@ -112,16 +112,16 @@ func TestAnUnsetOptionalFractionInheritsUntilOverridden(t *testing.T) {
 	c, err := autoEditor(k, s, "x", config.FieldMeta{Kind: config.FieldFloat, Min: -1, Max: 1, Optional: true})
 	opt, ok := c.(*optionalNumber)
 	if err != nil || !ok {
-		t.Fatalf("an optional fraction takes %T (%v), want the override editor", c, err)
+		t.Fatalf("an optional fraction takes %T (%v), want the optional spin", c, err)
 	}
-	if opt.on.On() || opt.spin.Enabled() || opt.spin.Value() != 0 {
-		t.Fatalf("unset: override %v, spin live %v at %v; want off, inert, at 0", opt.on.On(), opt.spin.Enabled(), opt.spin.Value())
+	if !opt.Empty() || opt.Value() != 0 {
+		t.Fatalf("unset: empty %v from %v; want inherited, stepping from 0", opt.Empty(), opt.Value())
 	}
-	opt.on.SetOn(true)
-	if stored != 0.0 {
-		t.Errorf("overriding wrote %#v, want 0.0", stored)
+	opt.KeyAction(widget.KeyUp, 0)
+	if stored != 0.01 {
+		t.Errorf("a step wrote %#v, want 0.01", stored)
 	}
-	opt.on.SetOn(false)
+	emptySpin(opt.SpinButton)
 	if stored != nil {
 		t.Errorf("inheriting again left %#v", stored)
 	}

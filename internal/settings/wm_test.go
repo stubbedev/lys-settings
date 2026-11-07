@@ -515,13 +515,17 @@ func TestSubmapsAreNamedCardsOfBinds(t *testing.T) {
 func TestOuterGapsWriteOneNumberOrFour(t *testing.T) {
 	k, w, _, files := wmKit(t, "")
 	c := fieldControl(k, w, wmSides("gaps.outer")).(*sidesEditor)
-	if c.on.On() {
-		t.Fatal("an unset gap shows overridden")
+	for _, s := range c.spins {
+		if !s.Empty() {
+			t.Fatal("an unset gap shows a side")
+		}
 	}
-	c.on.SetOn(true)
-	c.spins[0].SetValue(4)
-	c.spins[0].OnValueChanged(4)
-	if got := fileText(t, files.runtime); !strings.Contains(got, "outer:") || !strings.Contains(got, "- 4") {
+	c.spins[1].KeyAction(widget.KeyUp, 0)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "outer: 1") || c.spins[3].Empty() {
+		t.Fatalf("setting one side of an inherited gap sets all: %q", got)
+	}
+	c.spins[0].KeyAction(widget.KeyUp, 0)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "- 2") {
 		t.Fatalf("one side changed: %q", got)
 	}
 	for _, s := range c.spins {
@@ -531,8 +535,9 @@ func TestOuterGapsWriteOneNumberOrFour(t *testing.T) {
 	if got := fileText(t, files.runtime); !strings.Contains(got, "outer: 6") {
 		t.Fatalf("equal sides: %q", got)
 	}
-	c.on.SetOn(false)
-	if got := fileText(t, files.runtime); strings.Contains(got, "outer") {
+	emptySpin(c.spins[2])
+	c.refresh()
+	if got := fileText(t, files.runtime); strings.Contains(got, "outer") || !c.spins[0].Empty() {
 		t.Fatalf("inheriting kept %q", got)
 	}
 }
