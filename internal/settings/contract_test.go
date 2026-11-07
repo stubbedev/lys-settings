@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"errors"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stubbedev/lys-shell/shell/treetest"
@@ -101,6 +103,31 @@ func TestEveryWMRowShowsTheValueLysWMUsesUnlessTheSystemDecides(t *testing.T) {
 		inherited := w.value(r.path) == nil
 		if want := slices.Contains(systemDefaulted, r.path); inherited != want {
 			t.Errorf("%s: reads inherited %v, want %v", r.path, inherited, want)
+		}
+	}
+}
+
+func TestARefusedListItemNamesItsRuntimeLine(t *testing.T) {
+	if os.Getenv("LYS_SETTINGS_HEADLESS") == "" {
+		t.Skip("needs the dev shell's lys-wm; set by `just test`")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	f, err := wmconfig.Open(os.Getenv, wmconfig.Exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]struct {
+		edit wmconfig.Edit
+		want string
+	}{
+		"bind":    {wmconfig.Edit{Path: []string{"binds"}, Value: []any{map[string]any{"chord": "SUPER + Q"}}}, ":2: binds[0].action: is missing"},
+		"output":  {wmconfig.Edit{Path: []string{"outputs"}, Value: []any{map[string]any{"scale": 2}}}, ":2: outputs[0].match: is missing"},
+		"gesture": {wmconfig.Edit{Path: []string{"gestures", "hold"}, Value: []any{map[string]any{"action": "kill"}}}, ":3: gestures.hold[0].fingers: is missing"},
+	}
+	for name, c := range cases {
+		var rejected *wmconfig.RejectedError
+		if err := f.Check([]wmconfig.Edit{c.edit}); !errors.As(err, &rejected) || !strings.Contains(rejected.Reason, f.Runtime()+c.want) {
+			t.Errorf("%s: %v; want a refusal naming %s%s", name, err, f.Runtime(), c.want)
 		}
 	}
 }
