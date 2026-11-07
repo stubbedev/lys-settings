@@ -253,7 +253,7 @@ func dateTimeFooter(k *kit) widget.Widget {
 		}
 		manual := k.entry()
 		manual.SetPlaceholder(manualTimeLayout)
-		set := k.button(k.label(t.Get("settings-date-set")), nil, css.Small)
+		set := k.button(k.label(t.Get("settings-date-set")), nil, css.Secondary)
 		set.OnClick = func() {
 			at, err := time.ParseInLocation(manualTimeLayout, strings.TrimSpace(manual.Text()), time.Local)
 			if err != nil {
@@ -470,7 +470,7 @@ func regionFooter(k *kit) widget.Widget {
 		copyLayout := k.button(k.label(t.Get("settings-region-copy-layout")), func() {
 			kb := wmKeyboard(k)
 			p.do("SetX11Keyboard", kb.layout, kb.model, kb.variant, kb.options, false, interactive)
-		}, css.Small)
+		}, css.Secondary)
 		copyLayout.SetEnabled(wmconfig.Installed())
 		rows := widget.NewItemGroup()
 		rows.Append(panelRow(k, t.Get("settings-region-language"), t.Attr("settings-region-language", "description"), language))
