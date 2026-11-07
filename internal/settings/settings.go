@@ -94,6 +94,14 @@ func Run(page string) error {
 		w.openPage(page)
 	}
 	w.onClose = win.Close
+	w.focus = func(target widget.Widget) {
+		if err := win.SetFocus(target); err != nil {
+			log.Printf("settings: focus %T: %v", target, err)
+		}
+	}
+	if err := application.AddAccel("ctrl+f", widget.NewAction("settings.search", w.focusSearch)); err != nil {
+		return fmt.Errorf("settings: search shortcut: %w", err)
+	}
 	if ins != nil {
 		// A second launch raises this window (connect_activate's
 		// present): its activation token focuses it when the launcher

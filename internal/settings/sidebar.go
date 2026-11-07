@@ -7,21 +7,24 @@ import (
 	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
-// newSidebar is Sidebar on lys-ui's sidebar beside content: the title,
-// one collapsible group per nav section with active open, and the
-// reset-all button. Picking a page reports its id to onNavigate; the
+// newSidebar is Sidebar on lys-ui's sidebar beside content: the title over
+// the search field, one collapsible group per nav section with active
+// open, and the reset-all button. Picking a page reports its id to onNavigate; the
 // footer button runs onResetAll.
-func newSidebar(k *kit, sections []navSection, active string, content widget.Widget, onNavigate func(id string), onResetAll func()) *widget.Sidebar {
+func newSidebar(k *kit, sections []navSection, active string, content, search widget.Widget, onNavigate func(id string), onResetAll func()) *widget.Sidebar {
 	t := locale.T()
 	s := widget.NewSidebar(k.face, content)
 	s.SetCollapse(widget.SidebarNone)
 	s.SetNarrowWidth(0)
 
 	th := widget.Current()
-	header := widget.NewBox(widget.Row, th.Spacing, th.Padding)
+	title := widget.NewBox(widget.Row, th.Spacing, 0)
+	title.AppendAligned(k.icon("ld-settings-symbolic", "sidebar-icon"), false, widget.AlignCenter)
+	title.AppendAligned(k.label(t.Get("settings-title"), "sidebar-title", css.LargeText), false, widget.AlignCenter)
+	header := widget.NewBox(widget.Column, th.Spacing, th.Padding)
 	header.AddClass("sidebar-header")
-	header.AppendAligned(k.icon("ld-settings-symbolic", "sidebar-icon"), false, widget.AlignCenter)
-	header.AppendAligned(k.label(t.Get("settings-title"), "sidebar-title", css.LargeText), false, widget.AlignCenter)
+	header.Append(title, false)
+	header.Append(search, false)
 	s.SetHeader(header)
 
 	for _, sec := range sections {

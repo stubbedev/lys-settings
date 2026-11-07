@@ -2,6 +2,7 @@ package settings
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/stubbedev/lys-lib/render"
@@ -40,7 +41,13 @@ type window struct {
 	pageID   string
 	serial   int
 	// names are the pages in the stack, the current one last.
-	names []string
+	names   []string
+	search  *widget.SearchEntry
+	results *searchResults
+	index   []settingEntry
+	// focus moves the keyboard focus to a widget of the window; nil
+	// before the window maps.
+	focus func(widget.Widget)
 	// after runs fn on the loop once d passed (the old page's
 	// removal).
 	after func(d time.Duration, fn func())
@@ -51,11 +58,23 @@ type window struct {
 
 func newWindow(k *kit, cfg *config.Config, after func(time.Duration, func())) *window {
 	w := &window{k: k, sections: layout(cfg), after: after}
+	w.index = settingIndex(w.sections)
 	w.stack = widget.NewStack()
 	w.stack.SetTransition(widget.StackCrossfade, pageTransition)
+	w.results = newSearchResults(k, w.jump)
+	w.stack.Add(searchPage, w.results)
 	first := firstPage(w.sections)
 
 	t := locale.T()
+	w.search = widget.NewSearchEntry(k.face, k.textPx(), t.Get("settings-search-placeholder"))
+	w.search.AddClass("settings-search")
+	w.search.SetDelay(0)
+	w.search.OnSearchChanged = w.filter
+	w.search.OnActivate = func(string) {
+		if hit, ok := w.results.first(); ok {
+			w.jump(hit)
+		}
+	}
 	closeBtn := k.button(k.icon("ld-x-symbolic"), func() {
 		if w.onClose != nil {
 			w.onClose()
@@ -66,7 +85,7 @@ func newWindow(k *kit, cfg *config.Config, after func(time.Duration, func())) *w
 	closeBtn.SetTooltip(t.Get("settings-close"))
 	content := widget.NewOverlay().Append(w.stack).AppendAligned(closeBtn, widget.AlignEnd, widget.AlignStart)
 
-	w.sidebar = newSidebar(k, w.sections, first, content, w.show, func() {
+	w.sidebar = newSidebar(k, w.sections, first, content, w.search, w.navigate, func() {
 		if w.onResetAll != nil {
 			w.onResetAll()
 		}
@@ -120,6 +139,43 @@ func (w *window) dropStalePages(keep string) {
 		}
 	}
 	w.names = []string{keep}
+}
+
+// navigate is a sidebar pick: it ends a search and shows the page.
+func (w *window) navigate(id string) {
+	w.search.SetText("")
+	w.show(id)
+}
+
+// filter shows the settings matching query in place of the page, and
+// the page again once the query is empty.
+func (w *window) filter(query string) {
+	if strings.TrimSpace(query) == "" {
+		if len(w.names) > 0 {
+			w.stack.Show(w.names[len(w.names)-1])
+		}
+		return
+	}
+	w.results.show(searchSettings(w.index, query))
+	w.stack.Show(searchPage)
+}
+
+// jump opens the page a search hit is on, scrolls its row into view and
+// gives its control the keys.
+func (w *window) jump(hit settingEntry) {
+	w.search.SetText("")
+	w.openPage(hit.page)
+	if w.pageID == hit.page {
+		w.page.reveal(hit.row, w.focus)
+	}
+}
+
+// focusSearch gives the search field the keys, selecting what it holds.
+func (w *window) focusSearch() {
+	if w.focus != nil {
+		w.focus(w.search)
+	}
+	w.search.SelectAll()
 }
 
 // openPage shows the page with this id and marks it in the sidebar; an

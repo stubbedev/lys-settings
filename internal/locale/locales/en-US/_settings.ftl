@@ -116,6 +116,9 @@ settings-source-unsaved = unsaved
 settings-title = Settings
 settings-reset-all = Reset all
 settings-close = Close
+settings-search-placeholder = Search settings
+settings-search-title = Search results
+settings-search-empty = No setting matches the search
 
 ## Reset All confirmation
 settings-reset-all-title = Reset All Settings?

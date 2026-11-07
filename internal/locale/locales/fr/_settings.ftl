@@ -93,6 +93,9 @@ settings-source-unsaved = non enregistré
 settings-title = Paramètres
 settings-reset-all = Tout réinitialiser
 settings-close = Fermer
+settings-search-placeholder = Rechercher un réglage
+settings-search-title = Résultats de la recherche
+settings-search-empty = Aucun réglage ne correspond à la recherche
 
 ## Confirmation de réinitialisation
 settings-reset-all-title = Réinitialiser tous les paramètres ?

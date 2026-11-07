@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
@@ -85,6 +86,8 @@ type settingsPage struct {
 	*widget.Scroll
 	rows   []*settingRow
 	status *wmStatus
+	// revealing is the row the next layout scrolls into view.
+	revealing *settingRow
 }
 
 // buildPage lays out a page (pages/layout.rs).
@@ -105,7 +108,7 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		w, err := k.wmBackend()
 		if err != nil {
 			content.Append(k.label(err.Error(), "error", css.Caption), false)
-			p.Scroll = widget.NewScroll(content)
+			p.Scroll = widget.NewScroll(k.pageColumn(content))
 			p.VerticalOnly, p.ShowBars, p.FillY = true, true, true
 			return p
 		}
@@ -133,7 +136,7 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 	if spec.footer != nil {
 		content.Append(spec.footer(k), false)
 	}
-	p.Scroll = widget.NewScroll(content)
+	p.Scroll = widget.NewScroll(k.pageColumn(content))
 	p.VerticalOnly, p.ShowBars, p.FillY = true, true, true
 	return p
 }
@@ -154,4 +157,35 @@ func spin(lo, hi, step float64, digits int) rowOpt {
 	return withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
 		return newNumber(k, s, lo, hi, step, digits)
 	})
+}
+
+// pageMaxWidth caps a page's column at the unscaled styling: wider
+// windows centre it instead of stretching rows apart from their controls.
+const pageMaxWidth = 760
+
+// pageColumn centres a page's content at its capped width.
+func (k *kit) pageColumn(content widget.Widget) widget.Widget {
+	return widget.NewClamp(int(pageMaxWidth*float64(k.store.svc.Config().Styling.Scale)+0.5), content)
+}
+
+// reveal scrolls row i into view at the next layout and hands its
+// control the keys through focus.
+func (p *settingsPage) reveal(i int, focus func(widget.Widget)) {
+	if i < 0 || i >= len(p.rows) {
+		return
+	}
+	p.revealing = p.rows[i]
+	p.InvalidateLayout()
+	if target := widget.FirstFocusable(p.revealing.ctl); target != nil && focus != nil {
+		focus(target)
+	}
+}
+
+// Arrange lays the page out, then brings a pending reveal into view.
+func (p *settingsPage) Arrange(r render.Rect) {
+	p.Scroll.Arrange(r)
+	if row := p.revealing; row != nil {
+		p.revealing = nil
+		widget.RevealRect(row, row.Bounds())
+	}
 }
