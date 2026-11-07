@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"math"
+
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
@@ -165,7 +167,7 @@ const pageMaxWidth = 760
 
 // pageColumn centres a page's content at its capped width.
 func (k *kit) pageColumn(content widget.Widget) widget.Widget {
-	return widget.NewClamp(int(pageMaxWidth*float64(k.store.svc.Config().Styling.Scale)+0.5), content)
+	return widget.NewClamp(int(math.Round(pageMaxWidth*float64(k.store.svc.Config().Styling.Scale))), content)
 }
 
 // reveal scrolls row i into view at the next layout and hands its
