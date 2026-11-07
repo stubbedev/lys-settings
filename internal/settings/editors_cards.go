@@ -61,6 +61,9 @@ type cardSpec struct {
 	unique   string
 	// searchable heads the cards with a filter over the items' values.
 	searchable bool
+	// collapsed shows each card as its header alone until it is opened,
+	// building its fields then: a long list stays a list of titles.
+	collapsed bool
 	// addKey labels the add button's tooltip (settings-list-add).
 	addKey   string
 	chrome   *cardChrome
@@ -255,24 +258,55 @@ func (c *cardList) appendCard(i int) {
 			c.rebuild()
 		}
 	}, chrome.remove...)
-	header.AppendAligned(remove, false, widget.AlignCenter)
 	body := gapBox(widget.Column)
 	body.AddClass(chrome.body)
-	for _, f := range c.spec.fields {
-		var ctl control
-		if f.item != nil {
-			ctl = f.item(c.k, func(key string) slot { return c.fieldSlot(i, key) })
-		} else {
-			ctl = f.editor(c.k, c.fieldSlot(i, f.key))
+	fill := func() {
+		for _, f := range c.spec.fields {
+			var ctl control
+			if f.item != nil {
+				ctl = f.item(c.k, func(key string) slot { return c.fieldSlot(i, key) })
+			} else {
+				ctl = f.editor(c.k, c.fieldSlot(i, f.key))
+			}
+			row := gapBox(widget.Row)
+			row.AddClass(c.spec.rowClass)
+			row.AppendAligned(formLabel(f.label), !f.fill, widget.AlignCenter)
+			row.AppendAligned(ctl, f.fill, widget.AlignCenter)
+			body.Append(row, false)
+			cd.controls = append(cd.controls, ctl)
 		}
-		row := gapBox(widget.Row)
-		row.AddClass(c.spec.rowClass)
-		row.AppendAligned(formLabel(f.label), !f.fill, widget.AlignCenter)
-		row.AppendAligned(ctl, f.fill, widget.AlignCenter)
-		body.Append(row, false)
-		cd.controls = append(cd.controls, ctl)
+	}
+	if !c.spec.collapsed {
+		header.AppendAligned(remove, false, widget.AlignCenter)
+		fill()
+		cd.root = sectionCard(header, body, chrome.card)
+		c.list.Append(cd.root, false)
+		c.cards = append(c.cards, cd)
+		c.retitle(i)
+		return
 	}
 	cd.root = sectionCard(header, body, chrome.card)
+	sep, _ := cd.root.Children()[1].(*widget.Separator)
+	show := func(open bool) {
+		sep.SetVisible(open)
+		body.SetVisible(open)
+	}
+	var disclose *widget.Button
+	disclose = c.k.iconButton("ld-chevron-down-symbolic", "settings-card-expand", func() {
+		open := !body.Visible()
+		if open && len(cd.controls) == 0 {
+			fill()
+		}
+		show(open)
+		tip := "settings-card-expand"
+		if open {
+			tip = "settings-card-collapse"
+		}
+		disclose.SetTooltip(t.Get(tip))
+	}, "card-disclose", css.Ghost)
+	header.AppendAligned(disclose, false, widget.AlignCenter)
+	header.AppendAligned(remove, false, widget.AlignCenter)
+	show(false)
 	c.list.Append(cd.root, false)
 	c.cards = append(c.cards, cd)
 	c.retitle(i)

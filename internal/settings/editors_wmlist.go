@@ -43,6 +43,7 @@ func newWMObjects(k *kit, s slot, spec wmObjectSpec) *cardList {
 		fields:     wmItemFields(k.wm, append(slices.Clone(spec.schema), wmconfig.Each), nil, spec.labels),
 		blank:      func() map[string]any { return map[string]any{} },
 		searchable: true,
+		collapsed:  true,
 	})
 }
 
@@ -159,7 +160,7 @@ func nestedSlot(s slot, keys []string) slot {
 // wmSubmaps is the submaps row: a card per named set of binds, its name
 // and its binds, the sets in name order.
 func wmSubmaps() rowSpec {
-	binds := wmObjectSpec{schema: []string{"submaps", wmconfig.Each}, labels: "binds", title: []string{"chord"}}
+	binds := wmObjectSpec{schema: []string{"submaps", wmconfig.Each}, labels: "binds", title: []string{"chord", "action"}}
 	return wmField("submaps", cardRow(cardSpec{
 		identity: &cardField{key: "name", label: "wm-submaps-name", editor: func(k *kit, s slot) control { return newText(k, s, false) }},
 		fields: []cardField{{key: "binds", label: "wm-binds", fill: true, editor: func(k *kit, s slot) control {

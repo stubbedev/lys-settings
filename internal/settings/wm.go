@@ -387,7 +387,7 @@ func wmSections() []navSection {
 			sectionSpec{"wm-section-touchpad", wmFields("input.touchpad.tap", "input.touchpad.drag_lock", "input.touchpad.natural_scroll", "input.touchpad.disable_while_typing", "input.touchpad.middle_emulation", "input.touchpad.click_method", "input.touchpad.scroll_method", "input.touchpad.accel_profile", "input.touchpad.accel_speed", "input.touchpad.scroll_factor")},
 		),
 		wmPage("wm-binds", "ld-key-round-symbolic",
-			sectionSpec{"wm-section-binds", []rowSpec{wmObjects("binds", "chord")}},
+			sectionSpec{"wm-section-binds", []rowSpec{wmObjects("binds", "chord", "action")}},
 			sectionSpec{"wm-section-submaps", []rowSpec{wmSubmaps()}},
 			sectionSpec{"wm-section-gestures", []rowSpec{
 				wmObjects("gestures.swipe", "fingers", "direction", "modifiers"), wmObjects("gestures.pinch", "fingers", "direction", "modifiers"),

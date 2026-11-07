@@ -12,6 +12,7 @@ import (
 
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
 
 	"github.com/stubbedev/lys-settings/internal/locale"
@@ -417,8 +418,8 @@ func TestAnOptionalToggleWritesABoolAndUnsets(t *testing.T) {
 func TestBindsAreCardsWithAFilter(t *testing.T) {
 	const declared = "# keep\nbinds:\n  - {chord: SUPER + Q, action: kill}\n  - {chord: SUPER + F, action: fullscreen, flags: [locked]}\ntearing: true\n"
 	k, w, _, files := wmKit(t, declared)
-	c := fieldControl(k, w, wmObjects("binds", "chord")).(*cardList)
-	if len(c.cards) != 2 || c.cards[1].title.Text() != "SUPER + F" {
+	c := fieldControl(k, w, wmObjects("binds", "chord", "action")).(*cardList)
+	if len(c.cards) != 2 || c.cards[1].title.Text() != "SUPER + F · fullscreen" {
 		t.Fatalf("%d cards, the second titled %q", len(c.cards), c.cards[1].title.Text())
 	}
 	c.filter.SetText("full")
@@ -451,6 +452,14 @@ func TestARulesNestedObjectAndToggleWriteInsideTheItem(t *testing.T) {
 	if len(c.spec.fields) != 3 {
 		t.Fatalf("%d fields, want app_id, float and look.grain", len(c.spec.fields))
 	}
+	if len(c.cards[0].controls) != 0 || c.cards[0].root.Children()[2].(*widget.Box).Visible() {
+		t.Fatal("a collapsed card built or shows its fields")
+	}
+	disclose := treetest.WithClass(c.cards[0].root, "card-disclose")[0].(*widget.Button)
+	disclose.ClickAt(widget.Point{})
+	if len(c.cards[0].controls) != 3 || !c.cards[0].root.Children()[2].(*widget.Box).Visible() {
+		t.Fatalf("opening the card built %d controls", len(c.cards[0].controls))
+	}
 	if _, ok := c.cards[0].controls[1].(*optionalEnum); !ok {
 		t.Fatalf("a rule's float takes %T, want the inherit-or-pick select", c.cards[0].controls[1])
 	}
@@ -464,6 +473,10 @@ func TestARulesNestedObjectAndToggleWriteInsideTheItem(t *testing.T) {
 	grain.unset()
 	if _, ok := c.local[0]["look"]; ok {
 		t.Error("dropping the last nested key left an empty object")
+	}
+	disclose.ClickAt(widget.Point{})
+	if c.cards[0].root.Children()[2].(*widget.Box).Visible() || len(c.cards[0].controls) != 3 {
+		t.Error("closing the card left its fields shown, or rebuilt them")
 	}
 }
 
