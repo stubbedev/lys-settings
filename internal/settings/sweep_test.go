@@ -92,6 +92,8 @@ func sweepActions(root widget.Widget) []sweepAction {
 			edit("toggle", x.Toggle)
 		case *widget.CheckButton:
 			edit("check", x.Toggle)
+		case *widget.ToggleButton:
+			edit("toggle the button", func() { x.SetActive(!x.Active()) })
 		case *widget.ToggleGroup:
 			for i := range x.Len() {
 				edit(fmt.Sprintf("segment %d", i), func() { x.SetActive(i) })

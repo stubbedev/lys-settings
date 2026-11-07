@@ -122,6 +122,8 @@ func semanticEditor(k *kit, s slot, path string, meta config.FieldMeta) (control
 		return newChoiceEditor(k, s, choiceSpec{list: fixed(commandsFor(path)...), free: true, optional: meta.Optional}), true
 	case "BitwardenServer":
 		return newChoiceEditor(k, s, choiceSpec{list: fixed(bitwardenServers...), free: true}), true
+	case "IdleTimeout":
+		return newChoiceEditor(k, s, choiceSpec{list: fixed(idleTimeouts...), free: true}), true
 	case wmColorFormat:
 		return newWMColorEditor(k, s), true
 	}

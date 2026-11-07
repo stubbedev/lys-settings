@@ -181,3 +181,30 @@ func stageGreeterApply(body string) (string, error) {
 	}
 	return f.Name(), nil
 }
+
+func idlePage(*config.Config) pageSpec {
+	return pageSpec{
+		id: "idle", navKey: "settings-nav-idle", icon: "ld-moon-symbolic",
+		header: "settings-page-idle",
+		sections: []sectionSpec{
+			{title: "settings-section-general", rows: fields("idle.enable", "idle.lock-before-sleep")},
+			{title: "settings-section-idle-dim", rows: fields("idle.dim.ac", "idle.dim.battery", "idle.dim-percent")},
+			{title: "settings-section-idle-lock", rows: fields("idle.lock.ac", "idle.lock.battery")},
+			{title: "settings-section-idle-screen-off", rows: fields("idle.screen-off.ac", "idle.screen-off.battery")},
+			{title: "settings-section-idle-suspend", rows: fields("idle.suspend.ac", "idle.suspend.battery")},
+		},
+	}
+}
+
+func focusPage(*config.Config) pageSpec {
+	return pageSpec{
+		id: "focus", navKey: "settings-nav-focus", icon: "ld-bell-off-symbolic",
+		header: "settings-page-focus",
+		sections: []sectionSpec{
+			{title: "settings-section-focus-automatic", rows: append(fields("modules.notifications.dnd.while-sharing", "modules.notifications.dnd.while-fullscreen"), field("modules.notifications.dnd.schedule", dndScheduleList))},
+			{title: "settings-section-focus-allowed", rows: []rowSpec{field("modules.notifications.dnd.allow-critical"), field("modules.notifications.dnd.allow-apps", stringList)}},
+		},
+	}
+}
+
+var idleTimeouts = []string{"1m", "2m", "3m", "5m", "10m", "15m", "30m", "1h", "never"}
