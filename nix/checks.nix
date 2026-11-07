@@ -46,6 +46,7 @@
         name = "lys-settings-accounts";
         nodes.machine = {
           services.accounts-daemon.enable = true;
+          security.polkit.enable = true;
           users.users.alice = {
             isNormalUser = true;
             description = "Alice";
