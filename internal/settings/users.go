@@ -65,9 +65,10 @@ type avatarCrop struct {
 func cropAvatar(src image.Image, c avatarCrop) *image.RGBA {
 	b := src.Bounds()
 	side := float64(min(b.Dx(), b.Dy())) / max(c.zoom, 1)
-	cx := float64(b.Min.X) + float64(b.Dx())/2 + clampUnit(c.panX)*(float64(b.Dx())-side)/2
-	cy := float64(b.Min.Y) + float64(b.Dy())/2 + clampUnit(c.panY)*(float64(b.Dy())-side)/2
-	r := image.Rect(int(cx-side/2), int(cy-side/2), int(cx+side/2), int(cy+side/2)).Intersect(b)
+	cx := float64(b.Min.X) + float64(float64(b.Dx())/2) + float64(clampUnit(c.panX)*(float64(b.Dx())-side)/2)
+	cy := float64(b.Min.Y) + float64(float64(b.Dy())/2) + float64(clampUnit(c.panY)*(float64(b.Dy())-side)/2)
+	half := float64(side / 2)
+	r := image.Rect(int(cx-half), int(cy-half), int(cx+half), int(cy+half)).Intersect(b)
 	out := image.NewRGBA(image.Rect(0, 0, avatarSide, avatarSide))
 	xdraw.CatmullRom.Scale(out, out.Bounds(), src, r, xdraw.Src, nil)
 	return out
