@@ -314,6 +314,9 @@ func TestEveryPageBuilds(t *testing.T) {
 					if !tr.Has(r.labelKey()) {
 						t.Errorf("%s: row %s label %s missing", p.id, r.path, r.labelKey())
 					}
+					if strings.HasPrefix(tr.Attr(r.labelKey(), "description"), "No localization") {
+						t.Errorf("%s: row %s has no description", p.id, r.path)
+					}
 				}
 			}
 			page := buildPage(k, p)
