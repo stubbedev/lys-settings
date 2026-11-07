@@ -373,7 +373,7 @@ func TestWindowNavigatesAndDropsOldPages(t *testing.T) {
 	if first == "" || !sidebarItem(t, w, firstSpec.navKey).HasState(widget.StateChecked) {
 		t.Fatalf("opened on %q, want the first page active", first)
 	}
-	second := w.sections[0].pages[1]
+	second := otherPage(w, first)
 	sidebarItem(t, w, second.navKey).ClickAt(widget.Point{})
 	if w.pageID != second.id || !sidebarItem(t, w, second.navKey).HasState(widget.StateChecked) || sidebarItem(t, w, firstSpec.navKey).HasState(widget.StateChecked) {
 		t.Fatalf("navigate: page %q", w.pageID)

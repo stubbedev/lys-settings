@@ -42,6 +42,23 @@
         ${pkgs.desktop-file-utils}/bin/desktop-file-validate ${pkg}/share/applications/dev.stubbe.lys.settings.desktop
         touch $out
       '';
+      vm-accounts = pkgs.testers.runNixOSTest {
+        name = "lys-settings-accounts";
+        nodes.machine = {
+          services.accounts-daemon.enable = true;
+          users.users.alice = {
+            isNormalUser = true;
+            description = "Alice";
+          };
+        };
+        testScript = ''
+          machine.wait_for_unit("multi-user.target")
+          path = machine.succeed("busctl --system call org.freedesktop.Accounts /org/freedesktop/Accounts org.freedesktop.Accounts FindUserById x 1000 | cut -d\\\" -f2").strip()
+          machine.succeed(f"busctl --system call org.freedesktop.Accounts {path} org.freedesktop.Accounts.User SetRealName s 'Alice Liddell'")
+          gecos = machine.succeed("getent passwd alice | cut -d: -f5").strip()
+          assert gecos.split(",")[0] == "Alice Liddell", gecos
+        '';
+      };
     };
   };
 }

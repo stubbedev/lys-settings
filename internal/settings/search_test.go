@@ -116,9 +116,20 @@ func TestSearchShowsItsEmptyStateAndEndsOnNavigation(t *testing.T) {
 		t.Fatalf("clearing shows %q, want the page %q", w.stack.Visible(), start)
 	}
 	w.search.SetText("scale")
-	second := w.sections[0].pages[1]
+	second := otherPage(w, w.pageID)
 	sidebarItem(t, w, second.navKey).ClickAt(widget.Point{})
 	if w.search.Text() != "" || w.pageID != second.id || w.stack.Visible() == searchPage {
 		t.Errorf("navigating kept the search: text %q, page %q, shown %q", w.search.Text(), w.pageID, w.stack.Visible())
 	}
+}
+
+func otherPage(w *window, id string) pageSpec {
+	for _, s := range w.sections {
+		for _, p := range s.pages {
+			if p.id != id {
+				return p
+			}
+		}
+	}
+	return pageSpec{}
 }

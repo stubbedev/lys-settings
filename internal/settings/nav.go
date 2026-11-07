@@ -26,6 +26,7 @@ type navSection struct {
 // holds).
 func layout(cfg *config.Config) []navSection {
 	sections := []navSection{
+		{key: "settings-nav-account", pages: []pageSpec{usersPage(cfg)}},
 		{key: "settings-nav-bar-section", pages: []pageSpec{barGeneralPage(cfg), barButtonPage(cfg), barDropdownPage(cfg), dockPage(cfg)}},
 		{key: "settings-nav-appearance", pages: []pageSpec{themePage(cfg), wallpaperPage(cfg), animationsPage(cfg)}},
 		{key: "settings-nav-system", pages: []pageSpec{generalPage(cfg), dateTimePage(cfg), regionPage(cfg), idlePage(cfg), focusPage(cfg), loginItemsPage(cfg), defaultAppsPage(cfg), privacyPage(cfg)}},

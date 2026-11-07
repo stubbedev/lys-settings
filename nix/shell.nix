@@ -24,11 +24,11 @@
         # starts in a private runtime directory.
         inputs.lys-wm.packages.${pkgs.stdenv.hostPlatform.system}.default
         wtype
-        # Private buses for the fake system services the tests run.
         dbus
       ];
 
-      LD_LIBRARY_PATH = lib.makeLibraryPath self'.packages.default.libs;
+      LD_LIBRARY_PATH = lib.makeLibraryPath (self'.packages.default.libs ++ [pkgs.pam]);
+      LYS_SETTINGS_TEST_PWQUALITY = "${pkgs.libpwquality.lib}/lib/security/pam_pwquality.so";
       XKB_CONFIG_ROOT = "${pkgs.xkeyboard-config}/share/X11/xkb";
       XLOCALEDIR = "${pkgs.libX11}/share/X11/locale";
       LOCALE_ARCHIVE = "${pkgs.glibcLocales.override {
