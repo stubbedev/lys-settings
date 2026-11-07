@@ -54,11 +54,12 @@ func laidOutPages(t *testing.T, visit func(id string, page widget.Widget)) {
 	}
 }
 
-// walkOwn visits the window's own widgets under w: a chip's inside is
-// lys-ui's.
+// walkOwn visits the window's own widgets under w: a chip's inside, and a
+// segmented control's joined segments, are lys-ui's.
 func walkOwn(w widget.Widget, visit func(widget.Widget)) {
 	visit(w)
-	if _, chip := w.(*widget.Chip); chip {
+	switch w.(type) {
+	case *widget.Chip, *widget.ToggleGroup, *segmentedEnum:
 		return
 	}
 	if c, ok := w.(interface{ Children() []widget.Widget }); ok {

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/shell/widgets"
@@ -43,6 +44,9 @@ func autoEditor(k *kit, s slot, path string, meta config.FieldMeta) (control, er
 	case config.FieldBool:
 		return newToggle(k, s), nil
 	case config.FieldEnum:
+		if fitsSegments(enumLabels(meta)) {
+			return newSegmentedEnum(k, s, meta), nil
+		}
 		return newEnumSelect(k, s, meta), nil
 	case config.FieldInt:
 		if fitsSlider(meta) {
@@ -341,3 +345,55 @@ var mountPoints = withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
 		unset: s.unset,
 	}, false)
 })
+
+// Segmented control limits: an enum of this many variants, their labels
+// this many characters together, reads at a glance as segments; a longer
+// one stays a dropdown.
+const (
+	minSegments     = 2
+	maxSegments     = 4
+	maxSegmentChars = 28
+)
+
+// fitsSegments reports whether labels fit a segmented control.
+func fitsSegments(labels []string) bool {
+	if len(labels) < minSegments || len(labels) > maxSegments {
+		return false
+	}
+	chars := 0
+	for _, l := range labels {
+		chars += utf8.RuneCountInString(l)
+	}
+	return chars <= maxSegmentChars
+}
+
+// segmentedEnum is a small enum as lys-ui's segmented control: one
+// segment per variant, the stored one active.
+type segmentedEnum struct {
+	*widget.ToggleGroup
+	slot     slot
+	variants []string
+	syncing  bool
+}
+
+func newSegmentedEnum(k *kit, s slot, meta config.FieldMeta) *segmentedEnum {
+	c := &segmentedEnum{ToggleGroup: widget.NewToggleGroup(), slot: s, variants: meta.Variants}
+	for _, l := range enumLabels(meta) {
+		c.Append(k.label(l))
+	}
+	c.OnChanged = func(i int) {
+		if !c.syncing && i >= 0 && i < len(c.variants) {
+			_ = c.slot.set(c.variants[i])
+		}
+	}
+	c.refresh()
+	return c
+}
+
+// refresh activates the stored variant; an unknown one shows the first.
+func (c *segmentedEnum) refresh() {
+	v, _ := c.slot.get().(string)
+	c.syncing = true
+	c.SetActive(max(slices.Index(c.variants, v), 0))
+	c.syncing = false
+}

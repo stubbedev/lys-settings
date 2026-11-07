@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stubbedev/lys-shell/config"
@@ -140,5 +141,37 @@ func TestRowResetsAConfigValueToTheDefault(t *testing.T) {
 	}
 	if row.reset.Enabled() || row.reset.InlineStyle() == "" {
 		t.Error("a row at its default keeps its reset shown")
+	}
+}
+
+func TestSmallEnumsAreSegmentedControls(t *testing.T) {
+	k := testKit(t, "")
+	var stored any = "b"
+	writes := 0
+	s := slot{get: func() any { return stored }, set: func(v any) error { stored = v; writes++; return nil }}
+	c, err := autoEditor(k, s, "x", config.FieldMeta{Kind: config.FieldEnum, Variants: []string{"a", "b", "c"}})
+	seg, ok := c.(*segmentedEnum)
+	if err != nil || !ok {
+		t.Fatalf("a three-variant enum takes %T (%v), want segments", c, err)
+	}
+	if seg.Active() != 1 || writes != 0 {
+		t.Fatalf("shows segment %d after %d writes, want the stored b silently", seg.Active(), writes)
+	}
+	seg.KeyAction(widget.KeyRight, 0)
+	if stored != "c" || writes != 1 {
+		t.Errorf("Right wrote %v (%d writes)", stored, writes)
+	}
+	stored = "a"
+	seg.refresh()
+	if seg.Active() != 0 || writes != 1 {
+		t.Errorf("refresh: segment %d, %d writes", seg.Active(), writes)
+	}
+	many := config.FieldMeta{Kind: config.FieldEnum, Variants: []string{"a", "b", "c", "d", "e"}}
+	if c, _ := autoEditor(k, s, "x", many); c == nil || fmt.Sprintf("%T", c) != "*settings.enumSelect" {
+		t.Errorf("five variants take %T, want the dropdown", c)
+	}
+	long := config.FieldMeta{Kind: config.FieldEnum, Variants: []string{"a-very-long-variant", "another-long-variant"}}
+	if c, _ := autoEditor(k, s, "x", long); fmt.Sprintf("%T", c) != "*settings.enumSelect" {
+		t.Errorf("long labels take %T, want the dropdown", c)
 	}
 }
