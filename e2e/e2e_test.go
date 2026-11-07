@@ -21,133 +21,36 @@ import (
 	"github.com/stubbedev/lys-ui/app"
 
 	"github.com/stubbedev/lys-settings/internal/wmconfig"
+	"github.com/stubbedev/lys-settings/internal/wmtest"
 )
 
 const (
-	bound = 60 * time.Second
+	bound = wmtest.Bound
 	poll  = 50 * time.Millisecond
 )
 
 type session struct {
-	t       *testing.T
-	file    *wmconfig.File
-	path    string
-	logs    bytes.Buffer
-	stop    func()
-	runtime string
-}
-
-func needHeadless(t *testing.T) {
-	t.Helper()
-	if os.Getenv("LYS_SETTINGS_HEADLESS") == "" {
-		t.Skip("set by `just test`, which runs away from the desktop session")
-	}
-	for _, program := range []string{"lys-wm", "lys-wmctl"} {
-		if _, err := exec.LookPath(program); err != nil {
-			t.Fatalf("the dev shell provides %s: %v", program, err)
-		}
-	}
-}
-
-func private(t *testing.T) (config, runtime string) {
-	t.Helper()
-	dir, err := os.MkdirTemp("", "lys-settings-e2e-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	config, runtime = filepath.Join(dir, "config"), filepath.Join(dir, "run")
-	if err := os.Mkdir(runtime, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("HOME", dir)
-	t.Setenv("XDG_CONFIG_HOME", config)
-	t.Setenv("XDG_RUNTIME_DIR", runtime)
-	t.Setenv("WAYLAND_DISPLAY", "")
-	t.Setenv("DISPLAY", "")
-	t.Setenv("LYS_WM_SOCKET", "")
-	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+filepath.Join(dir, "no-bus"))
-	return config, runtime
+	*wmtest.Session
+	t    *testing.T
+	file *wmconfig.File
 }
 
 func start(t *testing.T) *session {
 	t.Helper()
-	needHeadless(t)
-	config, runtime := private(t)
-	s := &session{t: t, runtime: runtime, path: filepath.Join(config, "lys-wm", "config.yaml")}
+	s := &session{Session: wmtest.Start(t, declared), t: t}
 	var err error
 	if s.file, err = wmconfig.Open(os.Getenv, wmconfig.Exec); err != nil {
 		t.Fatal(err)
 	}
-	if s.file.Path() != s.path {
-		t.Fatalf("the file is %s, want %s", s.file.Path(), s.path)
+	if s.file.Path() != s.Path {
+		t.Fatalf("the file is %s, want %s", s.file.Path(), s.Path)
 	}
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(s.path, []byte(declared), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cmd := exec.Command("lys-wm", "-backend", "headless", "-renderer", "soft")
-	cmd.Stdout, cmd.Stderr = &s.logs, &s.logs
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	stopped := false
-	s.stop = func() {
-		if stopped {
-			return
-		}
-		stopped = true
-		_ = cmd.Process.Signal(os.Interrupt)
-		select {
-		case <-done:
-		case <-time.After(bound):
-			_ = cmd.Process.Kill()
-			<-done
-		}
-	}
-	t.Cleanup(s.stop)
-	t.Cleanup(func() {
-		if t.Failed() {
-			t.Logf("lys-wm said:\n%s", s.logs.String())
-		}
-	})
-	s.until("lys-wm answers", func() bool {
-		select {
-		case err := <-done:
-			t.Fatalf("lys-wm exited: %v\n%s", err, s.logs.String())
-		default:
-		}
-		_, err := s.ctl("version")
-		return err == nil
-	})
 	return s
-}
-
-func (s *session) until(what string, ok func() bool) {
-	s.t.Helper()
-	deadline := time.Now().Add(bound)
-	for !ok() {
-		if time.Now().After(deadline) {
-			s.t.Fatalf("no %s in %s", what, bound)
-		}
-		time.Sleep(poll)
-	}
-}
-
-func (s *session) ctl(args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), bound)
-	defer cancel()
-	out, err := wmconfig.Exec(ctx, append([]string{"lys-wmctl"}, args...)...)
-	return strings.TrimSpace(string(out)), err
 }
 
 func (s *session) reducedMotion() string {
 	s.t.Helper()
-	out, err := s.ctl("reducedmotion")
+	out, err := s.Ctl("reducedmotion")
 	if err != nil {
 		s.t.Fatal(err)
 	}
@@ -167,7 +70,7 @@ func read(t *testing.T, path string) string {
 
 func (s *session) content() string {
 	s.t.Helper()
-	return read(s.t, s.path)
+	return read(s.t, s.Path)
 }
 
 func (s *session) overrides() string {
@@ -278,7 +181,7 @@ func TestAChangeReachesTheRunningCompositorAndARefusedOneDoesNot(t *testing.T) {
 	if k := source(t, motion); k.Source != "runtime" || k.File != s.file.Runtime() || k.Value != true {
 		t.Fatalf("lys-wm does not read the override: %+v", k)
 	}
-	if k := source(t, []string{"xwayland", "enabled"}); k.Source != "config" || k.File != s.path {
+	if k := source(t, []string{"xwayland", "enabled"}); k.Source != "config" || k.File != s.Path {
 		t.Fatalf("%+v", k)
 	}
 	agreesWithLysWM(t, s.file)
@@ -325,7 +228,7 @@ func TestAChangeReachesTheRunningCompositorAndARefusedOneDoesNot(t *testing.T) {
 	}
 	agreesWithLysWM(t, s.file)
 
-	s.stop()
+	s.Stop()
 	reload, err = s.file.Apply([]wmconfig.Edit{{Path: motion, Value: true}})
 	if err != nil || reload != wmconfig.NotRunning {
 		t.Fatalf("with lys-wm gone: %v, %v", reload, err)
@@ -337,14 +240,14 @@ func TestAChangeReachesTheRunningCompositorAndARefusedOneDoesNot(t *testing.T) {
 
 func TestAHomeManagerLinkTakesChangesAsOverridesAndStays(t *testing.T) {
 	s := start(t)
-	store := filepath.Join(filepath.Dir(s.path), "..", "store-config.yaml")
+	store := filepath.Join(filepath.Dir(s.Path), "..", "store-config.yaml")
 	if err := os.WriteFile(store, []byte(s.content()), 0o444); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(s.path); err != nil {
+	if err := os.Remove(s.Path); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(store, s.path); err != nil {
+	if err := os.Symlink(store, s.Path); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.file.Apply([]wmconfig.Edit{{Path: motion, Value: true}}); err != nil {
@@ -353,7 +256,7 @@ func TestAHomeManagerLinkTakesChangesAsOverridesAndStays(t *testing.T) {
 	if got := s.reducedMotion(); got != "true" {
 		t.Fatalf("%s", got)
 	}
-	if target, err := os.Readlink(s.path); err != nil || target != store {
+	if target, err := os.Readlink(s.Path); err != nil || target != store {
 		t.Fatalf("the link moved: %q, %v", target, err)
 	}
 	if got := read(t, store); got != declared {
@@ -363,8 +266,8 @@ func TestAHomeManagerLinkTakesChangesAsOverridesAndStays(t *testing.T) {
 }
 
 func TestTheBuiltInConfigAndSchemaAreWhatThisAppExpects(t *testing.T) {
-	needHeadless(t)
-	private(t)
+	wmtest.Need(t)
+	wmtest.Private(t)
 	f, err := wmconfig.Open(os.Getenv, wmconfig.Exec)
 	if err != nil {
 		t.Fatal(err)
@@ -416,17 +319,7 @@ func TestTheAppOpensOnALysWMPageAsAClientOfLysWM(t *testing.T) {
 	s := start(t)
 	bin := buildApp(t)
 
-	displays, err := filepath.Glob(filepath.Join(s.runtime, "wayland-*"))
-	if err != nil || len(displays) == 0 {
-		t.Fatalf("no display in %s: %v", s.runtime, err)
-	}
-	display := ""
-	for _, d := range displays {
-		if !strings.HasSuffix(d, ".lock") {
-			display = filepath.Base(d)
-		}
-	}
-	t.Setenv("WAYLAND_DISPLAY", display)
+	s.Display()
 
 	out, err := exec.Command(bin, settingspage.ListFlag).Output()
 	if err != nil {
@@ -461,30 +354,15 @@ func TestTheAppOpensOnALysWMPageAsAClientOfLysWM(t *testing.T) {
 			t.Logf("the app said:\n%s", appLog.String())
 		}
 	})
-	s.until("settings window", func() bool {
-		windows, err := s.ctl("windows")
+	s.Until("settings window", func() bool {
+		windows, err := s.Ctl("windows")
 		return err == nil && strings.Contains(windows, "dev.stubbe.lys.settings")
 	})
 }
 
-func (s *session) display(t *testing.T) {
-	t.Helper()
-	displays, err := filepath.Glob(filepath.Join(s.runtime, "wayland-*"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range displays {
-		if !strings.HasSuffix(d, ".lock") {
-			t.Setenv("WAYLAND_DISPLAY", filepath.Base(d))
-			return
-		}
-	}
-	t.Fatalf("no display in %s", s.runtime)
-}
-
 func (s *session) settingsWindows() int {
 	s.t.Helper()
-	out, err := s.ctl("windows")
+	out, err := s.Ctl("windows")
 	if err != nil {
 		s.t.Fatal(err)
 	}
@@ -521,7 +399,7 @@ func TestASettingLinkOpensItsPageWithTheControlFocused(t *testing.T) {
 		t.Fatalf("the dev shell provides wtype: %v", err)
 	}
 	bin := buildApp(t)
-	s.display(t)
+	s.Display()
 
 	out, err := exec.Command(bin, settingspage.SettingFlag, "does.not.exist").CombinedOutput()
 	var exit *exec.ExitError
@@ -530,7 +408,7 @@ func TestASettingLinkOpensItsPageWithTheControlFocused(t *testing.T) {
 	}
 
 	s.launch(t, bin, settingspage.SettingFlag, "input.touchpad.natural_scroll")
-	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.Until("settings window", func() bool { return s.settingsWindows() == 1 })
 	s.chooseOn(t, "natural_scroll: true")
 }
 
@@ -540,10 +418,10 @@ func TestASettingLinkMovesTheRunningWindowWithoutASecond(t *testing.T) {
 		t.Fatalf("the dev shell provides wtype: %v", err)
 	}
 	bin := buildApp(t)
-	s.display(t)
+	s.Display()
 
 	s.launch(t, bin, settingspage.PageFlag, "wm-windows")
-	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.Until("settings window", func() bool { return s.settingsWindows() == 1 })
 	ctx, cancel := context.WithTimeout(context.Background(), bound)
 	defer cancel()
 	if out, err := exec.CommandContext(ctx, bin, settingspage.SettingFlag, "wm:input.touchpad.tap").CombinedOutput(); err != nil {
@@ -566,7 +444,7 @@ func (s *session) chooseOn(t *testing.T, want string) {
 		data, err := os.ReadFile(s.file.Runtime())
 		return err == nil && strings.Contains(string(data), want)
 	}
-	s.until("the focused control's dropdown choosing On, writing "+want, func() bool {
+	s.Until("the focused control's dropdown choosing On, writing "+want, func() bool {
 		for _, key := range []string{"Escape", "space", "Home", "Down", "Return"} {
 			press(t, key)
 		}
@@ -583,7 +461,7 @@ func (s *session) chooseOn(t *testing.T, want string) {
 
 func (s *session) inhibiting() bool {
 	s.t.Helper()
-	out, err := s.ctl("activewindow")
+	out, err := s.Ctl("activewindow")
 	if err != nil {
 		return false
 	}
@@ -614,10 +492,10 @@ func TestTheShortcutRecorderHoldsLysWMsBindsOffAndWritesTheChord(t *testing.T) {
 		t.Fatal(err)
 	}
 	bin := buildApp(t)
-	s.display(t)
+	s.Display()
 	s.launch(t, bin, settingspage.PageFlag, "wm-input")
-	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
-	s.until("the bind's recorder recording, with lys-wm's shortcuts inhibited", func() bool {
+	s.Until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.Until("the bind's recorder recording, with lys-wm's shortcuts inhibited", func() bool {
 		for _, args := range [][]string{{settingspage.PageFlag, "wm-input"}, {settingspage.SettingFlag, "wm:binds"}} {
 			if out, err := exec.Command(bin, args...).CombinedOutput(); err != nil {
 				t.Fatalf("%v: %v\n%s", args, err, out)
@@ -636,11 +514,11 @@ func TestTheShortcutRecorderHoldsLysWMsBindsOffAndWritesTheChord(t *testing.T) {
 	if out, err := exec.Command("wtype", "-M", "logo", "-M", "shift", "-k", "j", "-m", "shift", "-m", "logo").CombinedOutput(); err != nil {
 		t.Fatalf("wtype: %v\n%s", err, out)
 	}
-	s.until("the recorded chord in lys-wm's syntax, taken by lys-wm", func() bool {
+	s.Until("the recorded chord in lys-wm's syntax, taken by lys-wm", func() bool {
 		return strings.Contains(s.overrides(), "chord: SUPER + SHIFT + J")
 	})
-	s.until("the inhibitor dropped once the chord was recorded", func() bool { return !s.inhibiting() })
-	if problems, err := s.ctl("configproblems"); err != nil || strings.Contains(problems, "binds") {
+	s.Until("the inhibitor dropped once the chord was recorded", func() bool { return !s.inhibiting() })
+	if problems, err := s.Ctl("configproblems"); err != nil || strings.Contains(problems, "binds") {
 		t.Fatalf("lys-wm reports %q, %v", problems, err)
 	}
 }
@@ -697,11 +575,11 @@ func TestARecordedAppShortcutPressesWhatTheAppRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 	bin := buildApp(t)
-	s.display(t)
+	s.Display()
 	presses := registerShortcut(t, "org.example.Recorder", "start")
 	s.launch(t, bin, settingspage.PageFlag, "wm-input")
-	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
-	s.until("the app shortcut's recorder recording", func() bool {
+	s.Until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.Until("the app shortcut's recorder recording", func() bool {
 		for _, args := range [][]string{{settingspage.PageFlag, "wm-input"}, {settingspage.SettingFlag, "wm:binds"}} {
 			if out, err := exec.Command(bin, args...).CombinedOutput(); err != nil {
 				t.Fatalf("%v: %v\n%s", args, err, out)
@@ -720,11 +598,11 @@ func TestARecordedAppShortcutPressesWhatTheAppRegistered(t *testing.T) {
 	if out, err := exec.Command("wtype", "-M", "logo", "-M", "alt", "-k", "r", "-m", "alt", "-m", "logo").CombinedOutput(); err != nil {
 		t.Fatalf("wtype: %v\n%s", err, out)
 	}
-	s.until("a global bind for the app's shortcut, taken by lys-wm", func() bool {
+	s.Until("a global bind for the app's shortcut, taken by lys-wm", func() bool {
 		o := s.overrides()
 		return strings.Contains(o, "chord: SUPER + ALT + R") && strings.Contains(o, "action: global org.example.Recorder:start")
 	})
-	if out, err := s.ctl("dispatch", "global", "org.example.Recorder:start"); err != nil {
+	if out, err := s.Ctl("dispatch", "global", "org.example.Recorder:start"); err != nil {
 		t.Fatalf("dispatch the bind's action: %v %s", err, out)
 	}
 	select {

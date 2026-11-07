@@ -1,11 +1,19 @@
 package settings
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stubbedev/lys-shell/testhome"
 )
 
 // TestMain runs the package against a scratch home: building a theme
-// or a config reads, and the shell scaffolds, the user's config dir.
-func TestMain(m *testing.M) { testhome.Run(m) }
+// or a config reads, and the shell scaffolds, the user's config dir. The
+// Displays page never reaches the session's compositor: a test that wants
+// one starts its own.
+func TestMain(m *testing.M) {
+	if err := os.Unsetenv("WAYLAND_DISPLAY"); err != nil {
+		panic(err)
+	}
+	testhome.Run(m)
+}

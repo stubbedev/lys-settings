@@ -716,3 +716,30 @@ settings-sound-channel-TopRearLeft = Top Rear Left
 settings-sound-channel-TopRearRight = Top Rear Right
 settings-sound-channel-TopRearCenter = Top Rear Center
 settings-sound-channel-Unknown = Auxiliary
+settings-section-displays-arrangement = Arrangement
+    .description = Drag the displays, or move the selected one with the arrow keys, Shift for the next edge
+settings-section-displays-output = Selected Display
+    .description = The display selected in the arrangement
+settings-displays-arrangement = Display arrangement
+settings-displays-none = No display is connected
+settings-displays-unavailable = The displays cannot be read
+settings-displays-identify = Identify
+settings-displays-apply = Apply
+settings-displays-testing = Asking lys-wm…
+settings-displays-refused = lys-wm refused this layout; nothing changed
+settings-displays-confirm = Keep these display settings?
+settings-displays-reverting = { $seconds ->
+        [one] Reverting in { $seconds } second
+       *[other] Reverting in { $seconds } seconds
+    }
+settings-displays-keep = Keep
+settings-displays-revert = Revert
+settings-displays-enabled = Enabled
+settings-displays-resolution = Resolution
+settings-displays-refresh = Refresh Rate
+settings-displays-rate = { $rate } Hz
+settings-displays-rate-preferred = { $rate } Hz (preferred)
+settings-displays-scale = Scale
+    .description = How large everything shows, from 25 % to 1000 %
+settings-displays-scale-custom = Custom scale, such as 1.33
+settings-displays-scale-invalid = { $value } is not a scale from 0.25 to 10

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/stubbedev/lys-shell/config"
@@ -113,6 +114,9 @@ func Run(page, setting string) error {
 		ins.Bind(application)
 	}
 	k.pickers = windowPickers{app: application, win: win, theme: theme}
+	k.overlays = func(output string, content widget.Widget, interactive bool) (func(), error) {
+		return outputOverlay(application, sess.Outputs(), theme, output, content, interactive)
+	}
 	k.copySecret = func(text string) error {
 		clip := application.Clipboard()
 		if clip == nil {
@@ -233,4 +237,34 @@ func (p windowPickers) openFolder(fn func(path string)) {
 // at lys-ui's popover gap, focus inside it taking the keys.
 func pickerPopoverConfig(anchor widget.Boundser, content, focus widget.Widget) app.PopoverConfig {
 	return app.PopoverConfig{Anchor: anchor, Content: content, Focus: focus, Gap: widget.PopoverGap}
+}
+
+// outputOverlay opens content as an overlay layer centred on the output
+// named, styled by the window's stylesheet; the returned close may run
+// more than once.
+func outputOverlay(application *app.Application, outputs []*app.Output, theme *apptheme.Theme, name string, content widget.Widget, interactive bool) (func(), error) {
+	i := slices.IndexFunc(outputs, func(o *app.Output) bool { return o.Name == name })
+	if i < 0 {
+		return nil, fmt.Errorf("no output %s", name)
+	}
+	root := widget.NewBox(widget.Column, 0, widget.Current().Padding*2)
+	root.AddClass("display-overlay")
+	root.Append(content, false)
+	theme.Attach(root)
+	keys := app.KeyboardNone
+	if interactive {
+		keys = app.KeyboardOnDemand
+	}
+	layer, err := application.NewLayer(app.LayerConfig{
+		Output: outputs[i], Layer: app.LayerOverlay, Namespace: "lys-settings-displays",
+		Keyboard: keys, Root: root, Background: theme.RenderPalette().Surface,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open an overlay on %s: %w", name, err)
+	}
+	return func() {
+		if !layer.Closed() {
+			layer.Close()
+		}
+	}, nil
 }

@@ -45,6 +45,9 @@ type kit struct {
 	// nil runs it in place, the tests' synchronous loop.
 	background func(func())
 	copySecret func(text string) error
+	// overlays shows content on the output named on top of everything,
+	// taking the keys when interactive; nil without a session.
+	overlays func(output string, content widget.Widget, interactive bool) (close func(), err error)
 }
 
 // async runs work off the loop and hands its result to done on it.

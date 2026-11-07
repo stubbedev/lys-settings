@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/ebitengine/purego v0.11.2
-	github.com/stubbedev/lys-lib v0.3.11-0.20261107191714-a77209edd477
+	github.com/stubbedev/lys-lib v0.3.11-0.20261107201809-992f54cf735e
 	github.com/stubbedev/lys-secrets v0.3.13-0.20261107192453-b936ea962c2b
 	github.com/stubbedev/lys-shell v0.3.15-0.20261107195321-9b2d235c4fec
 	github.com/stubbedev/lys-ui v0.2.15-0.20261107193606-17ab6a7108ea

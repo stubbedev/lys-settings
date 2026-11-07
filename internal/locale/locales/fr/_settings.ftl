@@ -719,3 +719,30 @@ settings-sound-channel-TopRearLeft = Haut arrière gauche
 settings-sound-channel-TopRearRight = Haut arrière droit
 settings-sound-channel-TopRearCenter = Haut arrière centre
 settings-sound-channel-Unknown = Auxiliaire
+settings-section-displays-arrangement = Disposition
+    .description = Faites glisser les écrans, ou déplacez celui sélectionné avec les flèches, Maj pour le bord suivant
+settings-section-displays-output = Écran sélectionné
+    .description = L'écran sélectionné dans la disposition
+settings-displays-arrangement = Disposition des écrans
+settings-displays-none = Aucun écran n'est connecté
+settings-displays-unavailable = Les écrans ne peuvent pas être lus
+settings-displays-identify = Identifier
+settings-displays-apply = Appliquer
+settings-displays-testing = Demande à lys-wm…
+settings-displays-refused = lys-wm a refusé cette disposition ; rien n'a changé
+settings-displays-confirm = Conserver ces réglages d'affichage ?
+settings-displays-reverting = { $seconds ->
+        [one] Retour dans { $seconds } seconde
+       *[other] Retour dans { $seconds } secondes
+    }
+settings-displays-keep = Conserver
+settings-displays-revert = Rétablir
+settings-displays-enabled = Activé
+settings-displays-resolution = Résolution
+settings-displays-refresh = Fréquence de rafraîchissement
+settings-displays-rate = { $rate } Hz
+settings-displays-rate-preferred = { $rate } Hz (préférée)
+settings-displays-scale = Échelle
+    .description = La taille de l'affichage, de 25 % à 1000 %
+settings-displays-scale-custom = Échelle personnalisée, comme 1.33
+settings-displays-scale-invalid = { $value } n'est pas une échelle de 0,25 à 10
