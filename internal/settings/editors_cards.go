@@ -193,6 +193,14 @@ func (c *cardList) write(items []any) {
 	_ = c.slot.set(items)
 }
 
+// discardDraft drops the draft and any answer still on its way, so the
+// next refresh shows what is stored.
+func (c *cardList) discardDraft() {
+	c.checks++
+	c.drafting = false
+	c.draft.SetVisible(false)
+}
+
 // hold keeps the cards as a draft over what is stored, saying why the
 // target refuses them.
 func (c *cardList) hold(err error) {

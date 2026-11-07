@@ -34,3 +34,19 @@ func TestANewCardIsADraftUntilLysWMTakesIt(t *testing.T) {
 		t.Fatalf("an accepted card is not written: %q", fileText(t, files.runtime))
 	}
 }
+
+func TestResettingARowDropsItsDraft(t *testing.T) {
+	k, w, fake, _ := wmKit(t, "")
+	row := newFieldRow(k, w, wmObjects("binds", "chord", "action"))
+	k.onWMChange = row.refresh
+	c := row.ctl.(*cardList)
+	fake.reject = "binds[1].chord: is empty"
+	treetest.WithClass(c, "list-control-add")[0].(*widget.Button).OnClick()
+	if !c.draft.Visible() {
+		t.Fatal("no draft")
+	}
+	row.reset.OnClick()
+	if c.draft.Visible() || len(c.local) != 1 {
+		t.Fatalf("after the reset: draft %v, %d cards, the stored list has 1", c.draft.Visible(), len(c.local))
+	}
+}

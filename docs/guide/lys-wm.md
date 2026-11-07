@@ -17,8 +17,17 @@ unset. lys-wm merges them over `config.yaml`, which this app only reads. See lys
 4. It replaces the override file atomically, keeping its mode.
 5. `lys-wmctl reload` makes a running lys-wm read it.
 
-A change lys-wm refuses leaves the file and the session as they were, and the page
-shows lys-wm's message, with the file and the line.
+A change lys-wm refuses leaves the file and the session as they were: the page goes
+back to the last accepted value and shows lys-wm's message, with the file and the
+line. A new or edited card (a bind, rule, output or gesture) is checked the same way
+before it is written; while lys-wm would refuse it, it stays on the page as an unsaved
+draft with lys-wm's reason, and it is written once lys-wm takes it. **Reset** drops a
+draft.
+
+A key without an override shows the value lys-wm uses, from the defaults its schema
+publishes: the focus border reads `accent`, which follows the desktop accent until it
+is set. Keys lys-wm leaves to the system, such as the keyboard layout or a touchpad
+setting libinput decides, read **Inherited**.
 
 ## Where a value comes from
 
@@ -49,5 +58,5 @@ keys that still come from it.
   refused, naming the line. Change it by hand.
 - **A file that does not parse.** Fix it first; the page shows the error.
 
-Lists and keys with more than one form, such as `binds`, `rules`, `outputs` and a
-gradient border, are edited as YAML. Applying one overrides that whole value.
+A list, such as `binds`, `rules` or `outputs`, and a key with more than one form, such
+as a gradient border, is written whole: changing one item overrides the whole value.

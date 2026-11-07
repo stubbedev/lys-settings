@@ -270,6 +270,9 @@ func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
 	info.Append(r.problem, false)
 
 	r.reset = k.iconButton("ld-rotate-ccw-symbolic", "settings-reset-setting", func() {
+		if d, ok := ctl.(interface{ discardDraft() }); ok {
+			d.discardDraft()
+		}
 		be.reset(spec.path)
 		r.showProblem(nil)
 	}, "setting-reset", css.Ghost)
