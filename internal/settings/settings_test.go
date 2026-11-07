@@ -316,9 +316,11 @@ func TestEveryPageBuilds(t *testing.T) {
 					}
 				}
 			}
-			if page := buildPage(k, p); len(page.rows) == 0 {
+			page := buildPage(k, p)
+			if len(page.rows) == 0 {
 				t.Errorf("%s: no rows", p.id)
 			}
+			untippedIconButtons(t, p.id, page)
 		}
 	}
 	if len(ids) == 0 {
@@ -1489,8 +1491,8 @@ func TestMonitorWallpaperCards(t *testing.T) {
 		t.Error("the identity label lacks the list's label class")
 	}
 	remove := header.Children()[len(header.Children())-1].(*widget.Button)
-	if !remove.HasClass(css.Ghost) || !remove.HasClass(css.Icon) || remove.HasClass("list-control-remove") || remove.TooltipText() != "" {
-		t.Errorf("remove button classes/tooltip %q are card_form's", remove.TooltipText())
+	if !remove.HasClass(css.Ghost) || !remove.HasClass(css.Icon) || remove.HasClass("list-control-remove") || remove.TooltipText() != locale.T().Get("settings-list-remove") {
+		t.Errorf("remove button classes/tooltip %q: want the monitor card's ghost icon, named Remove", remove.TooltipText())
 	}
 
 	c.cards[0].identity.(*liveText).Insert("DP-1")
@@ -2406,4 +2408,21 @@ func TestPageArg(t *testing.T) {
 			t.Errorf("%v = %q, want %q", tc.args, got, tc.want)
 		}
 	}
+}
+
+// untippedIconButtons fails for every icon-only button under root
+// without a tooltip, the only text that names what it does.
+func untippedIconButtons(t *testing.T, where string, root widget.Widget) {
+	t.Helper()
+	treetest.Walk(root, func(w widget.Widget) {
+		if b, ok := w.(*widget.Button); ok && b.HasClass(css.Icon) && b.TooltipText() == "" {
+			t.Errorf("%s: an icon button %v has no tooltip", where, b.Classes())
+		}
+	})
+}
+
+func TestWindowIconButtonsAreNamed(t *testing.T) {
+	k := testKit(t, "")
+	w := newWindow(k, k.store.svc.Config(), (&fakeAfter{}).after)
+	untippedIconButtons(t, "window", w.root)
 }

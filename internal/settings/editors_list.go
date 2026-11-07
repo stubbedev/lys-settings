@@ -74,9 +74,7 @@ func newListEditor(k *kit, s slot, spec listSpec) *listEditor {
 
 // listButton is list_controls' add/remove button.
 func listButton(k *kit, icon, tooltipKey, class string, onClick func()) *widget.Button {
-	b := k.button(k.icon(icon), onClick, "list-control-button", class, css.Outline, css.Icon)
-	b.SetTooltip(locale.T().Get(tooltipKey))
-	return b
+	return k.iconButton(icon, tooltipKey, onClick, "list-control-button", class, css.Outline)
 }
 
 func (c *listEditor) stored() []any {
@@ -119,16 +117,16 @@ func (c *listEditor) appendRow(v any) {
 	row.AddClass(c.spec.rowClass)
 	row.Append(item, true)
 	if c.spec.reorder {
-		row.AppendAligned(c.rowButton("ld-chevron-up-symbolic", func() { c.move(item, -1) }), false, widget.AlignCenter)
-		row.AppendAligned(c.rowButton("ld-chevron-down-symbolic", func() { c.move(item, 1) }), false, widget.AlignCenter)
+		row.AppendAligned(c.rowButton("ld-chevron-up-symbolic", "settings-list-move-up", func() { c.move(item, -1) }), false, widget.AlignCenter)
+		row.AppendAligned(c.rowButton("ld-chevron-down-symbolic", "settings-list-move-down", func() { c.move(item, 1) }), false, widget.AlignCenter)
 	}
-	row.AppendAligned(c.rowButton("ld-trash-2-symbolic", func() { c.remove(item) }), false, widget.AlignCenter)
+	row.AppendAligned(c.rowButton("ld-trash-2-symbolic", "settings-list-remove", func() { c.remove(item) }), false, widget.AlignCenter)
 	c.rows.Append(row, false)
 	c.items = append(c.items, item)
 }
 
-func (c *listEditor) rowButton(icon string, onClick func()) *widget.Button {
-	return c.k.button(c.k.icon(icon), onClick, "string-list-button", css.Ghost, css.Icon)
+func (c *listEditor) rowButton(icon, tooltipKey string, onClick func()) *widget.Button {
+	return c.k.iconButton(icon, tooltipKey, onClick, "string-list-button", css.Ghost)
 }
 
 func (c *listEditor) remove(item listItem) {

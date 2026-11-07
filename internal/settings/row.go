@@ -117,19 +117,27 @@ func gapBox(axis widget.Axis) *widget.Box {
 // browseButton is the outline folder button asking the file chooser,
 // pick getting the chosen path.
 func (k *kit) browseButton(pick func(path string)) *widget.Button {
-	return k.chooserButton(func(p pickers) { p.openFile(pick) })
+	return k.chooserButton("settings-browse-file", func(p pickers) { p.openFile(pick) })
 }
 
 func (k *kit) folderButton(pick func(path string)) *widget.Button {
-	return k.chooserButton(func(p pickers) { p.openFolder(pick) })
+	return k.chooserButton("settings-browse-folder", func(p pickers) { p.openFolder(pick) })
 }
 
-func (k *kit) chooserButton(open func(pickers)) *widget.Button {
-	return k.button(k.icon("ld-folder-open-symbolic"), func() {
+func (k *kit) chooserButton(tooltipKey string, open func(pickers)) *widget.Button {
+	return k.iconButton("ld-folder-open-symbolic", tooltipKey, func() {
 		if k.pickers != nil {
 			open(k.pickers)
 		}
-	}, "browse", css.Outline, css.Icon)
+	}, "browse", css.Outline)
+}
+
+// iconButton is an icon-only button: its tooltip, the tooltipKey message,
+// is the only text naming what it does, so it cannot be left out.
+func (k *kit) iconButton(icon, tooltipKey string, onClick func(), classes ...string) *widget.Button {
+	b := k.button(k.icon(icon), onClick, append(classes, css.Icon)...)
+	b.SetTooltip(locale.T().Get(tooltipKey))
+	return b
 }
 
 // button wraps child in a plain button carrying classes.
@@ -211,7 +219,7 @@ func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
 		info.Append(dl, false)
 	}
 
-	r.reset = k.button(k.icon("ld-rotate-ccw-symbolic"), func() { be.reset(spec.path) }, "setting-reset", css.Ghost, css.Icon)
+	r.reset = k.iconButton("ld-rotate-ccw-symbolic", "settings-reset-setting", func() { be.reset(spec.path) }, "setting-reset", css.Ghost)
 	slot := widget.NewBox(widget.Row, 0, 0)
 	slot.AddClass("setting-control")
 	slot.AppendAligned(ctl, spec.fullWidth, widget.AlignCenter)

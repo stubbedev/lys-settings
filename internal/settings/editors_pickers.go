@@ -452,8 +452,7 @@ func newIconPicker(k *kit, names []string, current string, width int, pick func(
 			p.pick(text)
 		}
 	}
-	p.clear = k.button(k.icon("ld-x-circle-symbolic"), func() { p.pick("") }, "icon-picker-clear", css.Ghost, css.Icon)
-	p.clear.SetTooltip(locale.T().Get("settings-icon-clear"))
+	p.clear = k.iconButton("ld-x-circle-symbolic", "settings-icon-clear", func() { p.pick("") }, "icon-picker-clear", css.Ghost)
 	searchRow := gapBox(widget.Row)
 	searchRow.AppendAligned(p.search, true, widget.AlignCenter)
 	searchRow.AppendAligned(p.clear, false, widget.AlignCenter)

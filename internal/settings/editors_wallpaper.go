@@ -73,7 +73,7 @@ var monitorWallpaperList = cardRow(cardSpec{
 		return map[string]any{"name": "", "fit-mode": string(config.FitFill), "wallpaper": ""}
 	},
 	addKey:   "settings-monitor-add",
-	chrome:   &cardChrome{card: "monitor-card", header: "monitor-card-header", body: "monitor-card-body", remove: []string{css.Ghost, css.Icon}},
+	chrome:   &cardChrome{card: "monitor-card", header: "monitor-card-header", body: "monitor-card-body", remove: []string{css.Ghost}, removeKey: "settings-list-remove"},
 	classes:  []string{"monitor-wallpaper-control"},
 	listCls:  "monitor-wallpaper-list",
 	labelCls: "monitor-card-label",

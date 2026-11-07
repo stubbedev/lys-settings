@@ -34,13 +34,13 @@ type cardField struct {
 type cardChrome struct {
 	card, header, body string
 	remove             []string
-	// removeKey is the remove button's tooltip ("" for none).
+	// removeKey is the remove button's tooltip.
 	removeKey string
 }
 
 var cardFormChrome = cardChrome{
 	card: "card-form-card", header: "card-form-header", body: "card-form-body",
-	remove: []string{"list-control-button", "list-control-remove", css.Ghost, css.Icon}, removeKey: "settings-list-remove",
+	remove: []string{"list-control-button", "list-control-remove", css.Ghost}, removeKey: "settings-list-remove",
 }
 
 // cardSpec shapes a card list: the card's header (a title for the
@@ -197,16 +197,13 @@ func (c *cardList) appendCard(i int) {
 		cd.title = c.k.label("", "card-form-title", css.Heading)
 		header.AppendAligned(cd.title, true, widget.AlignCenter)
 	}
-	remove := c.k.button(c.k.icon("ld-trash-2-symbolic"), func() {
+	remove := c.k.iconButton("ld-trash-2-symbolic", chrome.removeKey, func() {
 		if i < len(c.local) {
 			c.local = append(c.local[:i:i], c.local[i+1:]...)
 			c.commit()
 			c.rebuild()
 		}
 	}, chrome.remove...)
-	if chrome.removeKey != "" {
-		remove.SetTooltip(t.Get(chrome.removeKey))
-	}
 	header.AppendAligned(remove, false, widget.AlignCenter)
 	body := gapBox(widget.Column)
 	body.AddClass(chrome.body)

@@ -207,8 +207,7 @@ func newChoiceEditor(k *kit, s slot, spec choiceSpec) *choiceEditor {
 	c.unknown = k.badge(t.Get("settings-choice-unknown"), "warning")
 	c.unknown.SetTooltip(t.Attr("settings-choice-unknown", "description"))
 	c.unknown.SetVisible(false)
-	c.open = k.button(k.icon("ld-chevron-down-symbolic"), c.show, "choice-open", css.Outline, css.Icon)
-	c.open.SetTooltip(t.Get("settings-choice-open"))
+	c.open = k.iconButton("ld-chevron-down-symbolic", "settings-choice-open", c.show, "choice-open", css.Outline)
 	committed := c.entry.OnActivate
 	c.entry.OnActivate = func(text string) {
 		committed(text)
@@ -451,14 +450,12 @@ type formatEditor struct {
 }
 
 func newFormatEditor(k *kit, s slot, optional bool, kind formatKind) *formatEditor {
-	t := locale.T()
 	c := &formatEditor{Box: widget.NewBox(widget.Column, widget.Current().Spacing/2, 0), k: k, slot: s, kind: kind, entry: newText(k, s, optional)}
 	icon, tip := "ld-plus-symbolic", "settings-format-insert"
 	if len(kind.insert) == 0 {
 		icon, tip = "ld-chevron-down-symbolic", "settings-format-presets"
 	}
-	c.open = k.button(k.icon(icon), c.show, "format-open", css.Outline, css.Icon)
-	c.open.SetTooltip(t.Get(tip))
+	c.open = k.iconButton(icon, tip, c.show, "format-open", css.Outline)
 	c.preview = k.label("", "format-preview", css.Caption, css.DimLabel)
 	c.preview.SetEllipsize(widget.EllipsizeEnd)
 	typed := c.entry.OnChanged

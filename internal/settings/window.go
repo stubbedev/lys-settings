@@ -75,14 +75,13 @@ func newWindow(k *kit, cfg *config.Config, after func(time.Duration, func())) *w
 			w.jump(hit)
 		}
 	}
-	closeBtn := k.button(k.icon("ld-x-symbolic"), func() {
+	closeBtn := k.iconButton("ld-x-symbolic", "settings-close", func() {
 		if w.onClose != nil {
 			w.onClose()
 		}
-	}, "settings-close", css.Ghost, css.Icon)
+	}, "settings-close", css.Ghost)
 	th := widget.Current()
 	closeBtn.SetMargin(render.Insets{Top: 2 * th.Padding, Right: 2 * th.Padding})
-	closeBtn.SetTooltip(t.Get("settings-close"))
 	content := widget.NewOverlay().Append(w.stack).AppendAligned(closeBtn, widget.AlignEnd, widget.AlignStart)
 
 	w.sidebar = newSidebar(k, w.sections, first, content, w.search, w.navigate, func() {
