@@ -298,3 +298,20 @@ func wallpaperPage(*config.Config) pageSpec {
 		{title: "settings-section-animation", rows: surfaceAnimationRows("animations.wallpaper")},
 	}}
 }
+
+// dockPage is the standalone dock.
+func dockPage(*config.Config) pageSpec {
+	return pageSpec{id: "dock", navKey: "settings-nav-dock", icon: "ld-panel-bottom-symbolic", header: "settings-page-dock", sections: []sectionSpec{
+		{title: "settings-section-general", rows: []rowSpec{
+			field("dock.enabled"),
+			field("dock.monitors", stringList),
+			field("dock.edge"),
+			field("dock.auto-hide"),
+			field("dock.pinned", stringList),
+		}},
+		{title: "settings-section-appearance", rows: []rowSpec{
+			field("dock.icon-size", sizeBase(config.TaskIconBaseRem)),
+			field("dock.icon", iconRow),
+		}},
+	}}
+}

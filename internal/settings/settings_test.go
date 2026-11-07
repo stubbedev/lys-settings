@@ -1707,7 +1707,7 @@ func TestModulePagesFollowTheRustOrder(t *testing.T) {
 	}
 	want := []string{
 		"battery", "bitwarden", "bluetooth", "brightness", "cava", "clock", "cpu", "custom", "dashboard", "hyprland-workspaces",
-		"nightlight", "idle-inhibit", "keybind-mode", "keyboard-input", "lys-wm-workspaces", "mail", "mango-workspaces", "media", "microphone",
+		"nightlight", "idle-inhibit", "keybind-mode", "keyboard-input", "lys-wm-workspaces", "mail", "mango-workspaces", "media", "microphone", "minimized-windows",
 		"netstat", "network", "niri-workspaces", "notification", "power", "power-profiles", "ram", "recorder", "screenshot",
 		"separator", "storage", "sway-workspaces", "systray", "treeman", "volume", "weather", "window-title", "world-clock",
 	}
@@ -2431,4 +2431,25 @@ func TestWindowIconButtonsAreNamed(t *testing.T) {
 	k := testKit(t, "")
 	w := newWindow(k, k.store.svc.Config(), (&fakeAfter{}).after)
 	untippedIconButtons(t, "window", w.root)
+}
+
+// The dock page holds a row for every dock option and nothing else, so
+// a new dock key needs a row here.
+func TestTheDockPageEditsEveryDockOption(t *testing.T) {
+	var rows []string
+	for _, s := range dockPage(&config.Config{}).sections {
+		for _, r := range s.rows {
+			rows = append(rows, r.path)
+		}
+	}
+	var keys []string
+	for f := range reflect.TypeFor[config.DockConfig]().Fields() {
+		key, _, _ := strings.Cut(f.Tag.Get("cfg"), ",")
+		keys = append(keys, "dock."+key)
+	}
+	slices.Sort(rows)
+	slices.Sort(keys)
+	if !slices.Equal(rows, keys) {
+		t.Fatalf("dock page rows %v, want the dock options %v", rows, keys)
+	}
 }

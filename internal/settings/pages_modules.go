@@ -25,6 +25,7 @@ func modulePages(cfg *config.Config) []pageSpec {
 		mangoWorkspacesPage(cfg),
 		mediaPage(cfg),
 		microphonePage(cfg),
+		minimizedWindowsPage(cfg),
 		netstatPage(cfg),
 		networkPage(cfg),
 		compositorWorkspacesPage("niri"),
@@ -654,5 +655,19 @@ func systrayPage(*config.Config) pageSpec {
 func customPage(*config.Config) pageSpec {
 	return pageSpec{id: "custom", navKey: "settings-nav-custom", icon: "ld-code-symbolic", header: "settings-page-custom", sections: []sectionSpec{
 		{title: "settings-section-general", rows: []rowSpec{field("modules.custom", withKey("settings-custom-modules-editor"), yamlRow("custom", 40))}},
+	}}
+}
+
+// minimizedWindowsPage is the minimized-windows module.
+func minimizedWindowsPage(*config.Config) pageSpec {
+	return pageSpec{id: "minimized-windows", navKey: "settings-nav-minimized-windows", icon: "ld-app-window-symbolic", header: "settings-page-minimized-windows", sections: []sectionSpec{
+		{title: "settings-section-general", rows: []rowSpec{
+			field("modules.minimized-windows.scope"),
+			field("modules.minimized-windows.show-when-empty"),
+		}},
+		{title: "settings-section-icons", rows: []rowSpec{
+			field("modules.minimized-windows.icon", iconRow),
+			field("modules.minimized-windows.icon-size", sizeBase(config.TaskIconBaseRem)),
+		}},
 	}}
 }
