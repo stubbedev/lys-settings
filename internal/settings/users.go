@@ -261,16 +261,17 @@ func passwordStrength(pw string) int {
 
 type usersPanel struct {
 	*widget.Box
-	k        *kit
-	conn     *dbus.Conn
-	acc      *accounts
-	props    sysProps
-	user     string
-	problem  *widget.Label
-	avatar   *widget.Box
-	realName *widget.Entry
-	admin    *widget.Box
-	changer  passwordChanger
+	k           *kit
+	conn        *dbus.Conn
+	acc         *accounts
+	props       sysProps
+	user        string
+	problem     *widget.Label
+	avatar      *widget.Box
+	realName    *widget.Entry
+	admin       *widget.Box
+	changer     passwordChanger
+	fingerprint *fingerprintSection
 }
 
 func usersFooter(k *kit) widget.Widget {
@@ -320,18 +321,19 @@ func (p *usersPanel) load() {
 			return accountsOpened{conn: conn, acc: &acc, props: props}, err
 		})
 		if err != nil {
-			_ = conn.Close()
-			return accountsOpened{err: err}
+			return accountsOpened{conn: conn, err: err}
 		}
 		return res
 	}, func(o accountsOpened) {
+		p.conn = o.conn
 		if o.err != nil {
 			if acct, err := currentAccount(); err == nil {
 				p.user = acct
 			}
+			p.loadFingerprint()
 			return
 		}
-		p.conn, p.acc, p.props = o.conn, o.acc, o.props
+		p.acc, p.props = o.acc, o.props
 		p.user = o.props.str("UserName")
 		p.realName.SetText(o.props.str("RealName"))
 		p.realName.SetEnabled(true)
@@ -339,6 +341,7 @@ func (p *usersPanel) load() {
 		if t == accountAdmin {
 			p.loadAdmin()
 		}
+		p.loadFingerprint()
 	})
 }
 
@@ -351,6 +354,9 @@ var currentAccount = func() (string, error) {
 }
 
 func (p *usersPanel) close() {
+	if p.fingerprint != nil {
+		p.fingerprint.close()
+	}
 	if p.conn != nil {
 		_ = p.conn.Close()
 		p.conn = nil
