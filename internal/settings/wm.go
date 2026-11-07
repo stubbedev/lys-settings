@@ -409,6 +409,7 @@ func wmSections() []navSection {
 			sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner"), wmSides("gaps.outer")}},
 			sectionSpec{"wm-section-borders", []rowSpec{wmField("borders.width"), wmBorder("borders.active"), wmBorder("borders.inactive")}},
 			sectionSpec{"wm-section-corners", wmFields("decoration.rounding", "decoration.active_opacity", "decoration.inactive_opacity", "decoration.fullscreen_opacity", "decoration.dim_inactive", "decoration.dim_strength")},
+			sectionSpec{"wm-section-focus", wmFields("focus.on_activate")},
 		),
 		wmPage("wm-effects", "ld-droplets-symbolic",
 			sectionSpec{"wm-section-shadow", wmFields("decoration.shadow.enabled", "decoration.shadow.range", "decoration.shadow.render_power", "decoration.shadow.sharp", "decoration.shadow.scale", "decoration.shadow.color", "decoration.shadow.color_inactive")},
