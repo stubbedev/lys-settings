@@ -18,6 +18,9 @@ type pageSpec struct {
 	// header titles the page; its breadcrumb attribute heads it.
 	header   string
 	sections []sectionSpec
+	// lead, when set, builds what precedes the sections (the Sound page's
+	// devices).
+	lead func(k *kit) widget.Widget
 	// footer, when set, builds what follows the sections (the greeter's
 	// apply button).
 	footer func(k *kit) widget.Widget
@@ -92,7 +95,7 @@ type settingsPage struct {
 	// revealing is the row the next layout scrolls into view.
 	revealing *settingRow
 	focusing  func()
-	release   func()
+	releases  []func()
 }
 
 // buildPage lays out a page (pages/layout.rs).
@@ -120,6 +123,9 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		be = w
 		p.status = newWMStatus(k, w)
 		content.Append(p.status, false)
+	}
+	if spec.lead != nil {
+		content.Append(p.own(spec.lead(k)), false)
 	}
 	for _, s := range spec.sections {
 		section := gapBox(widget.Column)
@@ -153,11 +159,7 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		content.Append(section, false)
 	}
 	if spec.footer != nil {
-		footer := spec.footer(k)
-		if c, ok := footer.(interface{ close() }); ok {
-			p.release = c.close
-		}
-		content.Append(footer, false)
+		content.Append(p.own(spec.footer(k)), false)
 	}
 	p.Scroll = widget.NewScroll(k.pageColumn(content))
 	p.VerticalOnly, p.ShowBars, p.FillY = true, true, true
@@ -226,9 +228,17 @@ func (p *settingsPage) Arrange(r render.Rect) {
 	}
 }
 
-func (p *settingsPage) close() {
-	if p.release != nil {
-		p.release()
-		p.release = nil
+// own takes on w's close, run when the page is dropped.
+func (p *settingsPage) own(w widget.Widget) widget.Widget {
+	if c, ok := w.(interface{ close() }); ok {
+		p.releases = append(p.releases, c.close)
 	}
+	return w
+}
+
+func (p *settingsPage) close() {
+	for _, release := range p.releases {
+		release()
+	}
+	p.releases = nil
 }
