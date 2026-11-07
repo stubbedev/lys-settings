@@ -310,11 +310,14 @@ func TestEveryPageBuilds(t *testing.T) {
 				if !tr.Has(sec.title) {
 					t.Errorf("%s: section title %s missing", p.id, sec.title)
 				}
+				if p.wm && !tr.HasAttr(sec.title, "description") {
+					t.Errorf("%s: section %s has no description", p.id, sec.title)
+				}
 				for _, r := range sec.rows {
 					if !tr.Has(r.labelKey()) {
 						t.Errorf("%s: row %s label %s missing", p.id, r.path, r.labelKey())
 					}
-					if strings.HasPrefix(tr.Attr(r.labelKey(), "description"), "No localization") {
+					if !tr.HasAttr(r.labelKey(), "description") {
 						t.Errorf("%s: row %s has no description", p.id, r.path)
 					}
 				}

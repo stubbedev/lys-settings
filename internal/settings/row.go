@@ -255,7 +255,7 @@ func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
 		labelRow.Append(d.dirtyBadge(), false)
 	}
 	info.Append(labelRow, false)
-	if desc := t.Attr(spec.labelKey(), "description"); desc != "" {
+	if desc := description(spec.labelKey()); desc != "" {
 		dl := k.label(desc, "setting-description", css.Caption, css.DimLabel)
 		dl.SetEllipsize(widget.EllipsizeEnd)
 		dl.SetMaxWidthChars(descriptionMaxChars)
@@ -319,4 +319,14 @@ func (r *settingRow) refreshSource() {
 	} else {
 		r.reset.SetInlineStylePriority("opacity: 0;", hiddenPriority)
 	}
+}
+
+// description is the help a message's description attribute gives, ""
+// for a message without one.
+func description(key string) string {
+	t := locale.T()
+	if !t.HasAttr(key, "description") {
+		return ""
+	}
+	return t.Attr(key, "description")
 }

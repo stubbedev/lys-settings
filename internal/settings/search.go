@@ -49,7 +49,7 @@ func settingIndex(sections []navSection) []settingEntry {
 				for _, r := range s.rows {
 					key := r.labelKey()
 					out = append(out, settingEntry{
-						page: p.id, row: row, label: t.Get(key), description: t.Attr(key, "description"),
+						page: p.id, row: row, label: t.Get(key), description: description(key),
 						place: place + " › " + t.Get(s.title), order: len(out),
 					})
 					row++

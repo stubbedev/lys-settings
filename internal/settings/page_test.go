@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stubbedev/lys-lib/render"
+	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
 )
 
@@ -26,5 +27,19 @@ func TestPageColumnIsCappedAndCentred(t *testing.T) {
 	p.Arrange(render.Rect{W: 600, H: 800})
 	if w := clamp.Children()[0].(widget.Boundser).Bounds().W; w != 600 {
 		t.Errorf("a narrow window gives the column %dpx, want all 600", w)
+	}
+}
+
+func TestASectionShowsItsDescriptionOnlyWhenItHasOne(t *testing.T) {
+	k, _, _, _ := wmKit(t, "")
+	spec := wmPage("wm-test", "ld-monitor-symbolic",
+		sectionSpec{"wm-section-gaps", []rowSpec{wmField("gaps.inner")}},
+		sectionSpec{"settings-section-general", []rowSpec{wmField("tearing")}})
+	notes := treetest.WithClass(buildPage(k, spec), "settings-section-description")
+	if len(notes) != 1 {
+		t.Fatalf("%d section notes, want the gaps section's alone", len(notes))
+	}
+	if got := notes[0].(*widget.Label).Text(); got != description("wm-section-gaps") || got == "" {
+		t.Errorf("the note reads %q", got)
 	}
 }

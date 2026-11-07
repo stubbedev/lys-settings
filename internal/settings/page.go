@@ -123,6 +123,11 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		section.AddClass("settings-section")
 		title := k.label(t.Get(s.title), "settings-section-title", css.CaptionHeading, css.DimLabel)
 		section.Append(title, false)
+		if desc := description(s.title); desc != "" {
+			note := k.label(desc, "settings-section-description", css.Caption, css.DimLabel)
+			note.SetWrap(true)
+			section.Append(note, false)
+		}
 		rows := widget.NewItemGroup()
 		group := widget.NewBox(widget.Column, 0, 0)
 		group.AddClass(css.Card, "settings-group")
