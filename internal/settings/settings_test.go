@@ -1367,6 +1367,28 @@ func TestOptionalSize(t *testing.T) {
 	}
 }
 
+func TestADropdownHeightIsWholePixels(t *testing.T) {
+	k := testKit(t, "")
+	path := "dropdowns.audio.height"
+	c := fieldControl(k, k.store, dropdownSizeRows("dropdowns.audio")[1]).(*optionalNumber)
+	if !c.Empty() || k.store.value(path) != nil {
+		t.Fatal("an unset height does not read as inherited")
+	}
+	c.KeyAction(widget.KeyUp, 0)
+	if v := k.store.value(path); v != "401px" {
+		t.Fatalf("a step from inherited wrote %#v, not a pixel length", v)
+	}
+	_ = k.store.set(path, "250px")
+	c.refresh()
+	if c.Empty() || c.Value() != 250 {
+		t.Fatalf("refresh from 250px: empty %v value %v", c.Empty(), c.Value())
+	}
+	emptySpin(c.SpinButton)
+	if k.store.value(path) != nil {
+		t.Fatal("emptying kept the height")
+	}
+}
+
 func TestToastPresetCards(t *testing.T) {
 	k := testKit(t, "")
 	path := "osd.presets"

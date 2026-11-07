@@ -26,6 +26,10 @@ func autoEditor(k *kit, s slot, path string, meta config.FieldMeta) (control, er
 	switch {
 	case meta.Type == "Size":
 		return newSizeEditor(k, s, 1), nil
+	case meta.Type == "PixelLength" && meta.Optional:
+		return newOptionalNumber(k, pixelLength(s), 0, maxPixels, 1, pixelsFallback, 0), nil
+	case meta.Type == "PixelLength":
+		return newNumber(k, pixelLength(s), 0, maxPixels, 1, 0), nil
 	case meta.Type == "HexColor":
 		return newColorEditor(k, s), nil
 	case meta.Type == "ColorValue":

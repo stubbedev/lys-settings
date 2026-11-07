@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"fmt"
+	"log"
 	"math"
 	"slices"
 	"strconv"
@@ -125,6 +127,10 @@ const (
 	sizePx
 	// remBasePx is REM_BASE_PX, the rem a scale multiplies.
 	remBasePx = 16.0
+	// maxPixels bounds a size in pixels; pixelsFallback is where an optional
+	// pixel length starts once stepped.
+	maxPixels      = 10000
+	pixelsFallback = 400
 )
 
 // sizeEditor is size_with_base: a scale-or-pixels dropdown and the
@@ -144,7 +150,7 @@ func newSizeEditor(k *kit, s slot, baseRem float64) *sizeEditor {
 	t := locale.T()
 	c := &sizeEditor{Box: gapBox(widget.Row), k: k, slot: s, basePx: baseRem * remBasePx}
 	c.mode = widget.NewDropdown(k.face, k.textPx(), []string{t.Get("settings-size-scale"), t.Get("settings-size-px")}, sizeScale)
-	c.spin = widget.NewSpinButton(k.face, k.textPx(), 0, 0, 10000, 0.05, 2)
+	c.spin = widget.NewSpinButton(k.face, k.textPx(), 0, 0, maxPixels, 0.05, 2)
 	c.AppendAligned(c.mode, false, widget.AlignCenter)
 	c.AppendAligned(c.spin, false, widget.AlignCenter)
 	c.mode.OnSelect = func(i int) {
@@ -223,6 +229,32 @@ func (c *sizeEditor) refresh() {
 	}
 }
 
+// pixelLength is a pixel length ("400px") as the whole pixels a spin edits.
+func pixelLength(s slot) slot {
+	return slot{
+		get: func() any {
+			text, ok := s.get().(string)
+			if !ok {
+				return nil
+			}
+			px, err := strconv.ParseFloat(strings.TrimSuffix(text, "px"), 64)
+			if err != nil {
+				log.Printf("settings: %q is no pixel length", text)
+				return nil
+			}
+			return int64(math.Round(px))
+		},
+		set: func(v any) error {
+			px, ok := v.(int64)
+			if !ok {
+				return fmt.Errorf("settings: %v is no whole number of pixels", v)
+			}
+			return s.set(strconv.FormatInt(px, 10) + "px")
+		},
+		unset: s.unset,
+	}
+}
+
 // sizeBase is size_with_base for a row: the base rem a scale of 1 is.
 func sizeBase(rem float64) rowOpt {
 	return withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
@@ -267,6 +299,6 @@ func dropdownSizeRows(path string) []rowSpec {
 	size := withEditor(func(k *kit, s slot, _ config.FieldMeta) control { return newOptionalSize(k, s, 1) })
 	return []rowSpec{
 		field(path+".width", withKey("settings-dropdown-width"), size),
-		field(path+".height", withKey("settings-dropdown-height"), size),
+		field(path+".height", withKey("settings-dropdown-height")),
 	}
 }
