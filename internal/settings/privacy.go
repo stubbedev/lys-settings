@@ -97,13 +97,13 @@ func (l *grantsList) show(r grantsListing) {
 	t := locale.T()
 	l.rows.Clear()
 	if l.failure != "" {
-		l.rows.Append(l.k.label(l.failure, css.Error, css.Caption), false)
+		l.rows.Append(wrapped(l.k.label(l.failure, css.Error, css.Caption)), false)
 		l.failure = ""
 	}
 	switch {
 	case r.err != nil:
 		log.Printf("settings: list the apps' grants: %v", r.err)
-		l.rows.Append(l.k.label(t.Get("settings-privacy-unavailable")+": "+r.err.Error(), css.Error, css.Caption), false)
+		l.rows.Append(wrapped(l.k.label(t.Get("settings-privacy-unavailable")+": "+r.err.Error(), css.Error, css.Caption)), false)
 		return
 	case len(r.apps) == 0:
 		l.rows.Append(l.k.label(t.Get("settings-privacy-none"), css.DimLabel), false)
@@ -124,7 +124,7 @@ func (l *grantsList) grantRow(app string, g permissions.Grant) widget.Widget {
 	text := gapBox(widget.Column)
 	text.Append(l.k.label(t.Get("settings-privacy-table-"+string(g.Table))+" · "+g.ID), false)
 	if g.Value != "" {
-		text.Append(l.k.label(g.Value, css.Caption, css.DimLabel), false)
+		text.Append(wrapped(l.k.label(g.Value, css.Caption, css.DimLabel)), false)
 	}
 	row := gapBox(widget.Row)
 	row.AddClass("settings-privacy-grant")
@@ -145,4 +145,9 @@ func (l *grantsList) grantRow(app string, g permissions.Grant) widget.Widget {
 	}
 	row.AppendAligned(revoke, false, widget.AlignCenter)
 	return row
+}
+
+func wrapped(l *widget.Label) *widget.Label {
+	l.SetWrap(true)
+	return l
 }
