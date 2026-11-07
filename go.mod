@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/stubbedev/lys-lib v0.3.10-0.20261107092437-3d588e348596
 	github.com/stubbedev/lys-shell v0.3.14-0.20261107090207-59ab9dac6b6c
-	github.com/stubbedev/lys-ui v0.2.14-0.20261107093036-06780ac6d7fa
+	github.com/stubbedev/lys-ui v0.2.14-0.20261107102244-19d4c39cb921
 	go.yaml.in/yaml/v3 v3.0.6
 )
 

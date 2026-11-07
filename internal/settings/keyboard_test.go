@@ -19,9 +19,6 @@ const maxTabStops = 5000
 // each stop showing its focus, and comes back round to where it began. The
 // wallpaper's cycling directory is set, so its revealed rows are shown.
 func TestTabReachesEveryControlOnEveryPage(t *testing.T) {
-	if raceDetector {
-		t.Skip("one goroutine steps focus a few thousand times; the race detector finds nothing here and slows it past the package timeout")
-	}
 	k := testKit(t, strings.Replace(geometryYAML, "wallpaper:\n", "wallpaper:\n  cycling-directory: /tmp\n", 1))
 	cfg := k.store.svc.Config()
 	w := newWindow(k, cfg, func(_ time.Duration, fn func()) { fn() })
