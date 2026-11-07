@@ -38,7 +38,7 @@ func newRevealGroup(k *kit, s slot, specs []rowSpec) *revealGroup {
 	group := widget.NewBox(widget.Column, 0, 0)
 	g := &revealGroup{Revealer: widget.NewRevealer(group), slot: s}
 	for _, rs := range specs {
-		row := newSettingRow(k, k.store, rs, fieldControl(k, k.store, rs))
+		row := newFieldRow(k, k.store, rs)
 		group.Append(row, false)
 		g.rows = append(g.rows, row)
 	}

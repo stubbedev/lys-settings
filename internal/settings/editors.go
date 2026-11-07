@@ -144,9 +144,9 @@ func (c *number) refresh() {
 	}
 }
 
-// text is TextControl: an entry committing on Enter, with the
-// "unsaved" badge up while the typed text is not committed. An
-// optional field's empty text is no value (store.unset).
+// text is TextControl: an entry committing on Enter and when it loses the
+// keys, with the "unsaved" badge up while the typed text is not committed.
+// An optional field's empty text is no value (store.unset).
 type text struct {
 	*widget.Entry
 	k        *kit
@@ -172,6 +172,11 @@ func newText(k *kit, s slot, optional bool) *text {
 			c.badge.SetVisible(false)
 		}
 	}
+	c.SetOnFocusChanged(func(focused bool) {
+		if !focused && c.badge.Visible() {
+			c.OnActivate(c.Text())
+		}
+	})
 	c.refresh()
 	return c
 }

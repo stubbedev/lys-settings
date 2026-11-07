@@ -184,7 +184,7 @@ func TestARefusedChangeShowsWhyAndTheRowGoesBack(t *testing.T) {
 	const before = "gaps:\n  inner: 3\n"
 	k, w, fake, files := wmKitWith(t, "", before)
 	fake.reject = "gaps.inner: nope"
-	row := newSettingRow(k, w, wmField("gaps.inner"), fieldControl(k, w, wmField("gaps.inner")))
+	row := newFieldRow(k, w, wmField("gaps.inner"))
 	n := row.ctl.(*number)
 	n.OnValueChanged(9)
 	if got := fileText(t, files.runtime); got != before {

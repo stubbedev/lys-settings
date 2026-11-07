@@ -126,7 +126,7 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		group.AddClass(css.Card, "settings-group")
 		group.Append(rows, false)
 		for _, rs := range s.rows {
-			row := newSettingRow(k, be, rs, fieldControl(k, be, rs))
+			row := newFieldRow(k, be, rs)
 			rows.Append(row)
 			p.rows = append(p.rows, row)
 		}

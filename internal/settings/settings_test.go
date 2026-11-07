@@ -264,7 +264,7 @@ func TestFieldControlRefusesWhatItCannotEdit(t *testing.T) {
 func TestRowResetButtonFollowsTheOverride(t *testing.T) {
 	k := testKit(t, "")
 	spec := field("bar.dropdown-shadow")
-	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
+	row := newFieldRow(k, k.store, spec)
 	if row.reset.Enabled() || row.badge.Visible() || !strings.Contains(row.reset.InlineStyle(), "opacity: 0") {
 		t.Fatal("a default row shows a live reset or a badge")
 	}
@@ -1388,7 +1388,7 @@ func TestThemeSelectorApplies(t *testing.T) {
 		t.Fatal("test premise: built-in themes")
 	}
 	spec := themePreset()
-	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
+	row := newFieldRow(k, k.store, spec)
 	c := row.ctl.(*themeSelector)
 	if c.badge.Visible() {
 		t.Error("no base theme shows a badge")
@@ -1422,7 +1422,7 @@ func TestCyclingRevealFollowsTheDirectory(t *testing.T) {
 		field("wallpaper.cycling-interval-mins", spin(1, 1440, 1, 0)),
 		field("wallpaper.cycling-same-image"),
 	)
-	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
+	row := newFieldRow(k, k.store, spec)
 	g := row.ctl.(*revealGroup)
 	if g.Revealed() || g.Progress() != 0 {
 		t.Fatalf("no directory: revealed %v at %v, want hidden at once", g.Revealed(), g.Progress())
@@ -2196,7 +2196,7 @@ func TestSettingsIsSingleInstance(t *testing.T) {
 func TestRowBadgeIsALysUIBadgeWithOneTint(t *testing.T) {
 	k := testKit(t, "")
 	spec := field("bar.dropdown-shadow")
-	row := newSettingRow(k, k.store, spec, fieldControl(k, k.store, spec))
+	row := newFieldRow(k, k.store, spec)
 	if row.badge.Variant() != widget.BadgeSecondary {
 		t.Errorf("badge variant %v, want the quiet secondary", row.badge.Variant())
 	}

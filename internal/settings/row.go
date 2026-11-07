@@ -177,8 +177,54 @@ type settingRow struct {
 	ctl   control
 	badge *widget.Badge
 	reset *widget.Button
+	// problem says why the last value the control wrote was refused.
+	problem *widget.Label
 	// action is the row's RowBehavior::Action.
 	action bool
+}
+
+// newFieldRow is the row for spec with its field's control, whose refused
+// writes the row reports under its label.
+func newFieldRow(k *kit, be backend, spec rowSpec) *settingRow {
+	var r *settingRow
+	report := func(err error) {
+		if r != nil {
+			r.showProblem(err)
+		}
+	}
+	r = newSettingRow(k, be, spec, fieldControl(k, reportingBackend{be, report}, spec))
+	return r
+}
+
+// reportingBackend hands report the outcome of every write through its
+// slots: the error a refused value gets, nil once one lands.
+type reportingBackend struct {
+	backend
+	report func(error)
+}
+
+func (b reportingBackend) slot(path string) slot {
+	s := b.backend.slot(path)
+	return slot{
+		get: s.get,
+		set: func(v any) error {
+			err := s.set(v)
+			b.report(err)
+			return err
+		},
+		unset: func() {
+			s.unset()
+			b.report(nil)
+		},
+	}
+}
+
+// showProblem shows why a value was refused, or hides the line for nil.
+func (r *settingRow) showProblem(err error) {
+	r.problem.SetVisible(err != nil)
+	if err != nil {
+		r.problem.SetText(err.Error())
+	}
 }
 
 // newSettingRow lays a row out (row/mod.rs view): a full-width control
@@ -218,8 +264,15 @@ func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
 		}
 		info.Append(dl, false)
 	}
+	r.problem = k.label("", "setting-problem", css.Caption, css.Error)
+	r.problem.SetWrap(true)
+	r.problem.SetVisible(false)
+	info.Append(r.problem, false)
 
-	r.reset = k.iconButton("ld-rotate-ccw-symbolic", "settings-reset-setting", func() { be.reset(spec.path) }, "setting-reset", css.Ghost)
+	r.reset = k.iconButton("ld-rotate-ccw-symbolic", "settings-reset-setting", func() {
+		be.reset(spec.path)
+		r.showProblem(nil)
+	}, "setting-reset", css.Ghost)
 	slot := widget.NewBox(widget.Row, 0, 0)
 	slot.AddClass("setting-control")
 	slot.AppendAligned(ctl, spec.fullWidth, widget.AlignCenter)
