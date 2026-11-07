@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -158,6 +159,12 @@ func (f *fakeSystemd) count(name string) {
 	f.calls[name]++
 }
 
+func (f *fakeSystemd) seen() (map[string]int, []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return maps.Clone(f.calls), slices.Clone(f.enabled)
+}
+
 func (f *fakeSystemd) LoadUnit(name string) (dbus.ObjectPath, *dbus.Error) {
 	f.count("LoadUnit")
 	return dbus.ObjectPath("/org/freedesktop/systemd1/unit/" + strings.NewReplacer(".", "_2e", "-", "_2d").Replace(name)), nil
@@ -273,8 +280,8 @@ func TestTheSessionsServicesComeFromOneListingOfTheirUnitFiles(t *testing.T) {
 	if want := []string{"lys-polkit.service", "lys-shell.service", "syncthing.service"}; !slices.Equal(names, want) {
 		t.Fatalf("%q, want %q", names, want)
 	}
-	if f.calls["ListUnitFilesByPatterns"] != 1 || f.calls["ListUnitsByNames"] != 1 {
-		t.Fatalf("calls %v, want one ListUnitFilesByPatterns and one ListUnitsByNames", f.calls)
+	if calls, _ := f.seen(); calls["ListUnitFilesByPatterns"] != 1 || calls["ListUnitsByNames"] != 1 {
+		t.Fatalf("calls %v, want one ListUnitFilesByPatterns and one ListUnitsByNames", calls)
 	}
 	for name, switchable := range map[string]bool{"lys-shell.service": false, "syncthing.service": true, "lys-polkit.service": false} {
 		u := units[slices.Index(names, name)]
@@ -291,8 +298,8 @@ func TestTheSessionsServicesComeFromOneListingOfTheirUnitFiles(t *testing.T) {
 	if err := m.setEnabled(ctx, "syncthing.service", true); err != nil {
 		t.Fatal(err)
 	}
-	if f.calls["DisableUnitFiles"] != 1 || f.calls["EnableUnitFiles"] != 1 || f.calls["Reload"] != 2 || !slices.Equal(f.enabled, []string{"syncthing.service"}) {
-		t.Fatalf("calls %v, enabled %v", f.calls, f.enabled)
+	if calls, enabled := f.seen(); calls["DisableUnitFiles"] != 1 || calls["EnableUnitFiles"] != 1 || calls["Reload"] != 2 || !slices.Equal(enabled, []string{"syncthing.service"}) {
+		t.Fatalf("calls %v, enabled %v", calls, enabled)
 	}
 }
 
