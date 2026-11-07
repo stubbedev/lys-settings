@@ -31,6 +31,10 @@
       LD_LIBRARY_PATH = lib.makeLibraryPath self'.packages.default.libs;
       XKB_CONFIG_ROOT = "${pkgs.xkeyboard-config}/share/X11/xkb";
       XLOCALEDIR = "${pkgs.libX11}/share/X11/locale";
+      LOCALE_ARCHIVE = "${pkgs.glibcLocales.override {
+        allLocales = false;
+        locales = ["en_US.UTF-8/UTF-8" "en_GB.UTF-8/UTF-8" "fr_FR.UTF-8/UTF-8"];
+      }}/lib/locale/locale-archive";
       FONTCONFIG_FILE = pkgs.makeFontsConf {
         fontDirectories = with pkgs; [inter jetbrains-mono dejavu_fonts];
       };

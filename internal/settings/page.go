@@ -92,6 +92,7 @@ type settingsPage struct {
 	// revealing is the row the next layout scrolls into view.
 	revealing *settingRow
 	focusing  func()
+	release   func()
 }
 
 // buildPage lays out a page (pages/layout.rs).
@@ -152,7 +153,11 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		content.Append(section, false)
 	}
 	if spec.footer != nil {
-		content.Append(spec.footer(k), false)
+		footer := spec.footer(k)
+		if c, ok := footer.(interface{ close() }); ok {
+			p.release = c.close
+		}
+		content.Append(footer, false)
 	}
 	p.Scroll = widget.NewScroll(k.pageColumn(content))
 	p.VerticalOnly, p.ShowBars, p.FillY = true, true, true
@@ -218,5 +223,12 @@ func (p *settingsPage) Arrange(r render.Rect) {
 	if give := p.focusing; give != nil {
 		p.focusing = nil
 		give()
+	}
+}
+
+func (p *settingsPage) close() {
+	if p.release != nil {
+		p.release()
+		p.release = nil
 	}
 }

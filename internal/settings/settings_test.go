@@ -334,7 +334,7 @@ func TestEveryPageBuilds(t *testing.T) {
 				}
 			}
 			page := buildPage(k, p)
-			if len(page.rows) == 0 {
+			if len(page.rows) == 0 && p.footer == nil {
 				t.Errorf("%s: no rows", p.id)
 			}
 			untippedIconButtons(t, p.id, page)

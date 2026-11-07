@@ -3,6 +3,7 @@ module github.com/stubbedev/lys-settings
 go 1.27.3
 
 require (
+	github.com/ebitengine/purego v0.11.2
 	github.com/stubbedev/lys-lib v0.3.11-0.20261107174905-cacc8baced7d
 	github.com/stubbedev/lys-shell v0.3.15-0.20261107182918-20bb5042acc5
 	github.com/stubbedev/lys-ui v0.2.15-0.20261107175237-466fe6ac6518
@@ -12,7 +13,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jfreymuth/pulse v0.1.3 // indirect
 	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253 // indirect

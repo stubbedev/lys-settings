@@ -43,6 +43,7 @@ type window struct {
 	serial   int
 	// names are the pages in the stack, the current one last.
 	names   []string
+	pages   map[string]*settingsPage
 	search  *widget.SearchEntry
 	results *searchResults
 	index   []settingEntry
@@ -60,7 +61,7 @@ type window struct {
 }
 
 func newWindow(k *kit, cfg *config.Config, after func(time.Duration, func())) *window {
-	w := &window{k: k, sections: layout(cfg), after: after}
+	w := &window{k: k, sections: layout(cfg), after: after, pages: map[string]*settingsPage{}}
 	w.index = settingIndex(w.sections)
 	w.stack = widget.NewStack()
 	w.stack.SetTransition(widget.StackCrossfade, pageTransition)
@@ -123,6 +124,7 @@ func (w *window) show(id string) {
 	w.serial++
 	name := id + "#" + strconv.Itoa(w.serial)
 	w.page, w.pageID = buildPage(w.k, spec), id
+	w.pages[name] = w.page
 	w.stack.Add(name, w.page)
 	w.stack.Show(name)
 	w.names = append(w.names, name)
@@ -138,6 +140,8 @@ func (w *window) dropStalePages(keep string) {
 	for _, name := range w.names {
 		if name != keep {
 			w.stack.Remove(name)
+			w.pages[name].close()
+			delete(w.pages, name)
 		}
 	}
 	w.names = []string{keep}
