@@ -183,7 +183,7 @@ func (w *wmBackend) slot(path string) slot {
 	raw := slot{
 		get:   func() any { return w.value(path) },
 		set:   func(v any) error { return w.edit(wmconfig.Edit{Path: wmPath(path), Value: v}) },
-		unset: func() { w.reset(path) },
+		unset: func() { w.dropOverride(path) },
 	}
 	f, ok := w.fieldOf(path)
 	if ok && f.Kind == wmconfig.Bool && !f.HasDefault {
@@ -209,12 +209,45 @@ func wmToggleSlot(raw slot) slot {
 	}
 }
 
-// reset drops the key's override, so the config file's value, else the
-// built-in one, applies again.
+// reset puts the key back to its default: its override drops, unless the
+// config file declares another value, which an override holding the default
+// then covers.
 func (w *wmBackend) reset(path string) {
-	if err := w.edit(wmconfig.Edit{Path: wmPath(path), Unset: true}); err != nil {
+	e := wmconfig.Edit{Path: wmPath(path), Unset: true}
+	if d, ok := w.defaultOf(path); ok && !w.baseIsDefault(path) {
+		e = wmconfig.Edit{Path: wmPath(path), Value: d}
+	}
+	if err := w.edit(e); err != nil {
 		log.Printf("settings: reset %s: %v", path, err)
 	}
+}
+
+// dropOverride drops the key's override, so the config file's value, else
+// the built-in one, applies again.
+func (w *wmBackend) dropOverride(path string) {
+	if err := w.edit(wmconfig.Edit{Path: wmPath(path), Unset: true}); err != nil {
+		log.Printf("settings: unset %s: %v", path, err)
+	}
+}
+
+// baseIsDefault reports whether the key without its override holds its
+// default.
+func (w *wmBackend) baseIsDefault(path string) bool {
+	v, ok := wmconfig.Lookup(w.base(), wmPath(path))
+	if !ok {
+		return true
+	}
+	d, _ := w.defaultOf(path)
+	return reflect.DeepEqual(w.normal(path, v), w.normal(path, d))
+}
+
+// isDefault reports whether the key holds its default.
+func (w *wmBackend) isDefault(path string) bool {
+	d, ok := w.defaultOf(path)
+	if !ok {
+		return w.value(path) == nil
+	}
+	return reflect.DeepEqual(w.value(path), w.normal(path, d))
 }
 
 func (k *kit) resetAll() {
@@ -251,7 +284,16 @@ func (w *wmBackend) resetAll() {
 	w.flush()
 }
 
+// source is the row state of the key, the reset live while the key is not
+// its default and something can bring it back.
 func (w *wmBackend) source(path string) sourceInfo {
+	info := w.badge(path)
+	_, known := w.defaultOf(path)
+	info.reset = !w.isDefault(path) && (known || wmconfig.Overridden(w.overrides, wmPath(path)))
+	return info
+}
+
+func (w *wmBackend) badge(path string) sourceInfo {
 	keys := wmPath(path)
 	v, inConfig := wmconfig.Lookup(w.tree, keys)
 	inConfig = inConfig && w.exists

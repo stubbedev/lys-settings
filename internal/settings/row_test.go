@@ -5,6 +5,8 @@ import (
 
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 func TestRowSaysWhyAValueWasRefused(t *testing.T) {
@@ -122,5 +124,21 @@ func TestAnUnsetOptionalFractionInheritsUntilOverridden(t *testing.T) {
 	opt.on.SetOn(false)
 	if stored != nil {
 		t.Errorf("inheriting again left %#v", stored)
+	}
+}
+
+func TestRowResetsAConfigValueToTheDefault(t *testing.T) {
+	k := testKit(t, "bar:\n  dropdown-shadow: false\n")
+	row := newFieldRow(k, k.store, field("bar.dropdown-shadow"))
+	if !row.reset.Enabled() || row.reset.InlineStyle() != "" || row.reset.TooltipText() != locale.T().Get("settings-reset-setting") {
+		t.Fatalf("a config value off the default: reset live %v, style %q, tooltip %q", row.reset.Enabled(), row.reset.InlineStyle(), row.reset.TooltipText())
+	}
+	row.reset.ClickAt(widget.Point{})
+	row.refresh()
+	if !row.ctl.(*toggle).On() || k.store.value("bar.dropdown-shadow") != true {
+		t.Fatal("the reset did not bring the default back over the config")
+	}
+	if row.reset.Enabled() || row.reset.InlineStyle() == "" {
+		t.Error("a row at its default keeps its reset shown")
 	}
 }

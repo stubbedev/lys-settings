@@ -91,28 +91,39 @@ func TestSourceBadges(t *testing.T) {
 		}
 	})
 	t.Run("a config value off the default is config", func(t *testing.T) {
-		got := sourceOf(k.store, "bar.dropdown-shadow")
-		if !got.badge || got.class != "info" || got.reset || got.label != locale.T().Get("settings-source-config") {
-			t.Errorf("config = %+v, want the info badge and no reset", got)
+		got := k.store.source("bar.dropdown-shadow")
+		if !got.badge || got.class != "info" || !got.reset || got.label != locale.T().Get("settings-source-config") {
+			t.Errorf("config = %+v, want the info badge and a reset to the default", got)
 		}
 	})
 	t.Run("a config value equal to the default shows nothing", func(t *testing.T) {
 		if d, _ := config.DefaultValue("bar.dropdown-autohide"); d != true {
 			t.Fatalf("test premise: dropdown-autohide defaults to %v", d)
 		}
-		if got := sourceOf(k.store, "bar.dropdown-autohide"); got.badge || got.reset {
+		if got := k.store.source("bar.dropdown-autohide"); got.badge || got.reset {
 			t.Errorf("config at default = %+v, want no badge", got)
 		}
 	})
 	t.Run("a runtime value alone is custom, over config an override", func(t *testing.T) {
-		_ = k.store.set("bar.dropdown-freeze-label", true)
-		if got := sourceOf(k.store, "bar.dropdown-freeze-label"); got.class != "success" || !got.reset || !got.badge {
+		_ = k.store.set("bar.dropdown-freeze-label", false)
+		if got := k.store.source("bar.dropdown-freeze-label"); got.class != "success" || !got.reset || !got.badge {
 			t.Errorf("runtime only = %+v, want the custom badge with reset", got)
 		}
-		_ = k.store.set("bar.dropdown-shadow", true)
-		got := sourceOf(k.store, "bar.dropdown-shadow")
+		_ = k.store.set("bar.dropdown-shadow", false)
+		got := k.store.source("bar.dropdown-shadow")
 		if got.class != "warning" || !got.reset || got.tooltip != locale.T().Attr("settings-source-override", "description") {
 			t.Errorf("runtime over config = %+v, want the override badge with reset", got)
+		}
+		_ = k.store.set("bar.dropdown-freeze-label", true)
+		if got := k.store.source("bar.dropdown-freeze-label"); got.reset || !got.badge {
+			t.Errorf("an override holding the default = %+v, want its badge and no reset", got)
+		}
+		k.store.reset("bar.dropdown-shadow")
+		if v := k.store.value("bar.dropdown-shadow"); v != true {
+			t.Errorf("reset over the config's false left %v, want the default true", v)
+		}
+		if got := k.store.source("bar.dropdown-shadow"); got.reset {
+			t.Errorf("after the reset = %+v, want no reset", got)
 		}
 	})
 }
@@ -483,11 +494,11 @@ func TestValueStructFields(t *testing.T) {
 	if m, _ := rv.(map[string]any); m["enter"] != "fade" || m["enter-duration"] != int64(300) {
 		t.Fatalf("runtime leaf = %#v, want both fields", rv)
 	}
-	if src := sourceOf(k.store, "animations.osd.enter"); src.class != "warning" || !src.reset {
+	if src := k.store.source("animations.osd.enter"); src.class != "warning" || !src.reset {
 		t.Errorf("a set field over config = %+v, want the override badge", src)
 	}
 	// with_field_reset: the field takes the baseline's, the rest stays.
-	k.store.reset("animations.osd.enter")
+	k.store.dropOverride("animations.osd.enter")
 	if k.store.value("animations.osd.enter") != "zoom" || k.store.value("animations.osd.enter-duration") != int64(300) {
 		t.Errorf("after reset enter %v duration %v, want zoom and 300 kept",
 			k.store.value("animations.osd.enter"), k.store.value("animations.osd.enter-duration"))
@@ -1730,7 +1741,7 @@ func TestDeviceSelect(t *testing.T) {
 	if v := k.store.value("modules.recorder.webcam-device"); v != "/dev/video0" {
 		t.Errorf("picking stored %v", v)
 	}
-	k.store.reset("modules.recorder.webcam-device") // back to the config's /dev/video9
+	k.store.dropOverride("modules.recorder.webcam-device") // back to the config's /dev/video9
 	cam.refresh()
 	if cam.Selected() != 2 || k.store.svc.Source("modules.recorder.webcam-device") == config.SourceRuntime {
 		t.Errorf("refresh selected %d, source %v: it must not write", cam.Selected(), k.store.svc.Source("modules.recorder.webcam-device"))

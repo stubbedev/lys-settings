@@ -100,11 +100,44 @@ func (s store) set(path string, v any) error {
 	return nil
 }
 
-// reset drops the runtime override at path. For a field of a value
+// reset puts the setting at path back to its default: the runtime
+// override drops, and where the config declares another value, an override
+// holding the default takes its place.
+func (s store) reset(path string) {
+	s.dropOverride(path)
+	if d := s.defaultValue(path); d != nil && !s.isDefault(path) {
+		_ = s.set(path, d)
+	}
+}
+
+// defaultValue is the built-in value at path, plain; nil for an optional
+// field the defaults leave unset.
+func (s store) defaultValue(path string) any {
+	leaf, sub, ok := config.LeafPath(path)
+	if !ok {
+		return nil
+	}
+	d, err := config.DefaultValue(leaf)
+	if err != nil {
+		return nil
+	}
+	v := config.Plain(d)
+	if sub != "" {
+		v, _ = subValue(v, sub)
+	}
+	return v
+}
+
+// isDefault reports whether the setting at path holds its default.
+func (s store) isDefault(path string) bool {
+	return reflect.DeepEqual(s.value(path), s.defaultValue(path))
+}
+
+// dropOverride drops the runtime override at path. For a field of a value
 // struct it is with_field_reset: the runtime value takes the
 // baseline's field, the baseline being the config's value, else the
-// default; without a runtime value there is nothing to reset.
-func (s store) reset(path string) {
+// default; without a runtime value there is nothing to drop.
+func (s store) dropOverride(path string) {
 	leaf, sub, ok := config.LeafPath(path)
 	if !ok {
 		return
@@ -143,7 +176,7 @@ func (s store) unset(path string) {
 		_ = s.set(path, nil)
 		return
 	}
-	s.reset(path)
+	s.dropOverride(path)
 }
 
 // resetAll drops every runtime override (perform_reset_all).
@@ -161,7 +194,7 @@ func (s store) save() {
 
 // sourceInfo is what a row shows about where its value comes from
 // (row/methods.rs): the badge, its color class and tooltip, and
-// whether the reset button is live.
+// whether the reset button is live (the value differs from its default).
 type sourceInfo struct {
 	label, tooltip, class string
 	badge, reset          bool
@@ -207,7 +240,7 @@ func runtimeSource(inConfig bool) sourceInfo {
 		key, class = "settings-source-override", "warning"
 	}
 	t := locale.T()
-	return sourceInfo{label: t.Get(key), tooltip: t.Attr(key, "description"), class: class, badge: true, reset: true}
+	return sourceInfo{label: t.Get(key), tooltip: t.Attr(key, "description"), class: class, badge: true}
 }
 
 // backend is the config a page's rows edit: lys-shell's through its config
@@ -223,7 +256,15 @@ func (s store) field(path string) (config.FieldMeta, bool) { return config.Field
 
 func (s store) slot(path string) slot { return pathSlot(s, path) }
 
-func (s store) source(path string) sourceInfo { return sourceOf(s, path) }
+// source is the row state at path, the reset live while the value is not
+// the default and something can bring it back: an override to drop, or a
+// default to write over the config's value.
+func (s store) source(path string) sourceInfo {
+	info := sourceOf(s, path)
+	leaf, _, _ := config.LeafPath(path)
+	info.reset = !s.isDefault(path) && (s.defaultValue(path) != nil || s.svc.Source(leaf) == config.SourceRuntime)
+	return info
+}
 
 // slot is where an editor reads and writes its value: a config path,
 // or one item of a list editor (written back with the whole list).

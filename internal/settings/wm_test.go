@@ -294,7 +294,7 @@ func TestAReadOnlyOverrideFileShowsOnThePage(t *testing.T) {
 	}
 }
 
-func TestResettingAnOverrideFallsBackToTheConfigThenTheBuiltIn(t *testing.T) {
+func TestResetPutsAKeyBackToItsDefaultOverTheConfig(t *testing.T) {
 	_, w, _, files := wmKitWith(t, "gaps:\n  inner: 3\n", "gaps:\n  inner: 5\ntearing: true\n")
 	if got := w.value("gaps.inner"); got != int64(5) {
 		t.Fatalf("%v", got)
@@ -303,17 +303,21 @@ func TestResettingAnOverrideFallsBackToTheConfigThenTheBuiltIn(t *testing.T) {
 		t.Fatalf("%+v", src)
 	}
 	w.reset("gaps.inner")
-	if got := fileText(t, files.runtime); got != "tearing: true\n" {
-		t.Fatalf("%q", got)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "inner: 8") || !strings.Contains(got, "tearing: true") {
+		t.Fatalf("the default must cover the config's 3: %q", got)
 	}
-	if got := w.value("gaps.inner"); got != int64(3) {
+	if got := w.value("gaps.inner"); got != int64(8) {
 		t.Fatalf("%v", got)
 	}
-	if src := w.source("gaps.inner"); !src.badge || src.reset || src.label != locale.T().Get("settings-source-config") {
-		t.Fatalf("a config value: %+v", src)
+	if src := w.source("gaps.inner"); src.reset {
+		t.Fatalf("a key at its default offers a reset: %+v", src)
 	}
 	if src := w.source("tearing"); src.label != locale.T().Get("settings-source-custom") || !src.reset {
 		t.Fatalf("an override of no config key: %+v", src)
+	}
+	w.reset("tearing")
+	if got := fileText(t, files.runtime); strings.Contains(got, "tearing") {
+		t.Fatalf("a key the config leaves out resets by dropping its override: %q", got)
 	}
 }
 
@@ -336,19 +340,32 @@ func TestResettingAnOverrideWithoutAConfigRestoresTheBuiltIn(t *testing.T) {
 	noFile(t, files.config)
 }
 
-func TestResettingAKeyWithNoOverrideDoesNothing(t *testing.T) {
-	_, w, fake, files := wmKit(t, "gaps:\n  inner: 3\n")
-	if src := w.source("gaps.inner"); src.reset {
-		t.Fatalf("a config value cannot be reset here: %+v", src)
+func TestAConfigValueOffTheDefaultResetsThroughAnOverride(t *testing.T) {
+	_, w, _, files := wmKit(t, "gaps:\n  inner: 3\n")
+	if src := w.source("gaps.inner"); !src.reset {
+		t.Fatalf("a config value off the default offers no reset: %+v", src)
 	}
 	w.reset("gaps.inner")
-	if fake.checks != 0 || fake.reloads != 0 {
-		t.Fatalf("%d checks, %d reloads", fake.checks, fake.reloads)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "inner: 8") {
+		t.Fatalf("%q", got)
 	}
-	noFile(t, files.runtime)
-	if got := w.value("gaps.inner"); got != int64(3) {
+	if got := w.value("gaps.inner"); got != int64(8) {
 		t.Fatalf("%v", got)
 	}
+}
+
+func TestAKeyAtItsDefaultOffersNoReset(t *testing.T) {
+	_, w, fake, files := wmKit(t, "gaps:\n  inner: 8\n")
+	if src := w.source("gaps.inner"); src.reset {
+		t.Fatalf("%+v", src)
+	}
+	if src := w.source("tearing"); src.reset {
+		t.Fatalf("an unset key with a default: %+v", src)
+	}
+	if fake.checks != 0 {
+		t.Fatalf("%d checks", fake.checks)
+	}
+	noFile(t, files.runtime)
 }
 
 func TestANullOverrideClearsTheMappingBelowIt(t *testing.T) {
@@ -356,8 +373,8 @@ func TestANullOverrideClearsTheMappingBelowIt(t *testing.T) {
 	if got := w.value("gaps.inner"); got != int64(8) {
 		t.Fatalf("%v", got)
 	}
-	if src := w.source("gaps.inner"); !src.reset {
-		t.Fatalf("%+v", src)
+	if src := w.source("gaps.inner"); src.reset || !src.badge {
+		t.Fatalf("a null override leaves the key at its default, overridden: %+v", src)
 	}
 }
 
