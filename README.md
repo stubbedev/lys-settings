@@ -45,8 +45,9 @@ Debian and Fedora packages and an archive are on the
 
 ```sh
 lys-settings                 # open the window
-lys-settings --page wm-input # open on a page
-lys-settings --list-pages    # the pages as JSON, which lys-shell's launcher lists
+lys-settings --page wm-input                     # open on a page
+lys-settings --setting input.touchpad.natural_scroll  # open on a setting, focused
+lys-settings --list-pages                        # the pages and their settings as JSON, which lys-shell's launcher lists
 ```
 
 ## Development

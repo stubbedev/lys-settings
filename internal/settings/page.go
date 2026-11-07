@@ -177,15 +177,21 @@ func (k *kit) pageColumn(content widget.Widget) widget.Widget {
 
 // reveal scrolls row i into view at the next layout and hands its
 // control the keys through focus.
-func (p *settingsPage) reveal(i int, focus func(widget.Widget)) {
+func (p *settingsPage) reveal(i int, focus func(widget.Widget)) *settingRow {
 	if i < 0 || i >= len(p.rows) {
-		return
+		return nil
 	}
-	p.revealing = p.rows[i]
-	p.InvalidateLayout()
-	if target := widget.FirstFocusable(p.revealing.ctl); target != nil && focus != nil {
+	row := p.rows[i]
+	if row.Bounds().Empty() {
+		p.revealing = row
+		p.InvalidateLayout()
+	} else {
+		widget.RevealRect(row, row.Bounds())
+	}
+	if target := widget.FirstFocusable(row.ctl); target != nil && focus != nil {
 		focus(target)
 	}
+	return row
 }
 
 // Arrange lays the page out, then brings a pending reveal into view.

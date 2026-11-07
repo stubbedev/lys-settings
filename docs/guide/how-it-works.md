@@ -48,10 +48,16 @@ the lys-wm pages still wins.
 
 ## The launcher
 
-lys-shell's launcher runs `lys-settings --list-pages`, which prints the pages as JSON
-in the desktop's language without a session or reading any config, and opens one with
-`lys-settings --page <id>`. lys-shell's `settingspage` package holds that contract
-and both ends use it. Without lys-settings installed the launcher logs why and offers
+lys-shell's launcher runs `lys-settings --list-pages`, which prints the pages and every
+setting on them (path, title and keywords) as JSON in the desktop's language without a
+session or reading any config, and opens a page with `lys-settings --page <id>` or a
+setting with `lys-settings --setting <path>`. A setting path is a lys-shell config path
+(`bar.location`) or `wm:` and a lys-wm one (`wm:input.touchpad.natural_scroll`); the
+`wm:` may be left out where lys-shell has no such path. The setting's page opens with
+its control focused and its label highlighted, in the running window when there is one,
+and an unknown path exits 2. Synonyms a search should find a row by sit beside its
+label in the locale files, as a `.keywords` attribute. lys-shell's `settingspage`
+package holds that contract and both ends use it. Without lys-settings installed the launcher logs why and offers
 no rows.
 
 ## Editors

@@ -23,7 +23,7 @@ const appID = "dev.stubbe.lys.settings"
 // Run loads the config and shows the settings window until it closes
 // (main.rs). A config that cannot load is an error: the window edits
 // it, so there is nothing to show without it.
-func Run(page string) error {
+func Run(page, setting string) error {
 	// raise is set once the window exists; forwarded launches buffer
 	// until Bind, after it.
 	var raise func(args []string)
@@ -81,17 +81,16 @@ func Run(page string) error {
 	w := newWindow(k, cfg, after)
 	k.onWMChange = w.refresh
 	theme.Attach(w.root)
+	w.request(launch{page: page, setting: setting})
 
 	win, err := application.NewWindow(app.WindowConfig{
 		Title: locale.T().Get("settings-title"), AppID: appID,
 		Width: windowWidth, Height: windowHeight,
 		Root: w.root, Background: theme.RenderPalette().Surface,
+		OnPresented: w.presentedFirst,
 	})
 	if err != nil {
 		return fmt.Errorf("settings: window: %w", err)
-	}
-	if page != "" {
-		w.openPage(page)
 	}
 	w.onClose = win.Close
 	w.focus = func(target widget.Widget) {
@@ -107,7 +106,7 @@ func Run(page string) error {
 		// present): its activation token focuses it when the launcher
 		// gave one, else the window asks for attention.
 		raise = func(args []string) {
-			w.openPage(pageArg(args))
+			w.request(parseLaunch(args))
 			win.RequestAttention()
 		}
 		ins.Bind(application)

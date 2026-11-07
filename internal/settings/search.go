@@ -25,10 +25,46 @@ const (
 type settingEntry struct {
 	page        string
 	row         int
+	path        string
 	label       string
 	description string
+	keywords    []string
+	section     string
 	place       string
 	order       int
+}
+
+const wmSettingPrefix = "wm:"
+
+func settingPath(p pageSpec, r rowSpec) string {
+	if p.wm {
+		return wmSettingPrefix + r.path
+	}
+	return r.path
+}
+
+func keywords(key string) []string {
+	t := locale.T()
+	if !t.HasAttr(key, "keywords") {
+		return nil
+	}
+	var out []string
+	for w := range strings.SplitSeq(t.Attr(key, "keywords"), ",") {
+		if w = strings.TrimSpace(w); w != "" {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+func findSetting(index []settingEntry, path string) (settingEntry, bool) {
+	if i := slices.IndexFunc(index, func(e settingEntry) bool { return e.path == path }); i >= 0 {
+		return index[i], true
+	}
+	if strings.HasPrefix(path, wmSettingPrefix) {
+		return settingEntry{}, false
+	}
+	return findSetting(index, wmSettingPrefix+path)
 }
 
 type searchHit struct {
@@ -48,9 +84,10 @@ func settingIndex(sections []navSection) []settingEntry {
 			for _, s := range p.sections {
 				for _, r := range s.rows {
 					key := r.labelKey()
+					section := t.Get(s.title)
 					out = append(out, settingEntry{
-						page: p.id, row: row, label: t.Get(key), description: description(key),
-						place: place + " › " + t.Get(s.title), order: len(out),
+						page: p.id, row: row, path: settingPath(p, r), label: t.Get(key), description: description(key), keywords: keywords(key),
+						section: section, place: place + " › " + section, order: len(out),
 					})
 					row++
 				}
@@ -93,7 +130,7 @@ func entryScore(e settingEntry, words []string) (int, bool) {
 			total += searchLabelWeight + s
 		case strings.Contains(place, w):
 			total += searchPlaceWeight
-		case strings.Contains(desc, w):
+		case strings.Contains(desc, w), slices.ContainsFunc(e.keywords, func(k string) bool { return strings.Contains(strings.ToLower(k), w) }):
 			total += searchDescWeight
 		default:
 			return 0, false
@@ -165,4 +202,13 @@ func (r *searchResults) first() (settingEntry, bool) {
 		return settingEntry{}, false
 	}
 	return r.hits[0], true
+}
+
+func (e settingEntry) listedKeywords() []string {
+	out := make([]string, 0, len(e.keywords)+2)
+	out = append(out, e.section)
+	if e.description != "" {
+		out = append(out, e.description)
+	}
+	return append(out, e.keywords...)
 }

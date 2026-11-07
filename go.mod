@@ -3,10 +3,11 @@ module github.com/stubbedev/lys-settings
 go 1.27.3
 
 require (
-	github.com/stubbedev/lys-lib v0.3.11-0.20261107145845-8b1cb7ee4b9a
-	github.com/stubbedev/lys-shell v0.3.15-0.20261107153534-05096d6216ad
-	github.com/stubbedev/lys-ui v0.2.15-0.20261107160018-5da0e8206fda
+	github.com/stubbedev/lys-lib v0.3.11-0.20261107162857-242ecfe768aa
+	github.com/stubbedev/lys-shell v0.3.15-0.20261107163302-a8fe7ff93915
+	github.com/stubbedev/lys-ui v0.2.15-0.20261107165619-ddbeccc3b138
 	go.yaml.in/yaml/v3 v3.0.6
+	golang.org/x/sys v0.49.0
 )
 
 require (
@@ -23,7 +24,6 @@ require (
 	github.com/stubbedev/memory-go v0.5.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	modernc.org/libc v1.80.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

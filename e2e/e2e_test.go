@@ -465,3 +465,117 @@ func TestTheAppOpensOnALysWMPageAsAClientOfLysWM(t *testing.T) {
 		return err == nil && strings.Contains(windows, "dev.stubbe.lys.settings")
 	})
 }
+
+func (s *session) display(t *testing.T) {
+	t.Helper()
+	displays, err := filepath.Glob(filepath.Join(s.runtime, "wayland-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range displays {
+		if !strings.HasSuffix(d, ".lock") {
+			t.Setenv("WAYLAND_DISPLAY", filepath.Base(d))
+			return
+		}
+	}
+	t.Fatalf("no display in %s", s.runtime)
+}
+
+func (s *session) settingsWindows() int {
+	s.t.Helper()
+	out, err := s.ctl("windows")
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	return strings.Count(out, "dev.stubbe.lys.settings")
+}
+
+func (s *session) launch(t *testing.T, bin string, args ...string) {
+	t.Helper()
+	var appLog bytes.Buffer
+	app := exec.Command(bin, args...)
+	app.Stdout, app.Stderr = &appLog, &appLog
+	if err := app.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = app.Process.Kill()
+		_ = app.Wait()
+		if t.Failed() {
+			t.Logf("the app said:\n%s", appLog.String())
+		}
+	})
+}
+
+func press(t *testing.T, key string) {
+	t.Helper()
+	if out, err := exec.Command("wtype", "-k", key).CombinedOutput(); err != nil {
+		t.Fatalf("wtype -k %s: %v\n%s", key, err, out)
+	}
+}
+
+func TestASettingLinkOpensItsPageWithTheControlFocused(t *testing.T) {
+	s := start(t)
+	if _, err := exec.LookPath("wtype"); err != nil {
+		t.Fatalf("the dev shell provides wtype: %v", err)
+	}
+	bin := buildApp(t)
+	s.display(t)
+
+	out, err := exec.Command(bin, settingspage.SettingFlag, "does.not.exist").CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 2 || !strings.Contains(string(out), `"does.not.exist"`) {
+		t.Fatalf("an unknown setting: %v, %s", err, out)
+	}
+
+	s.launch(t, bin, settingspage.SettingFlag, "input.touchpad.natural_scroll")
+	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
+	s.chooseOn(t, "natural_scroll: true")
+}
+
+func TestASettingLinkMovesTheRunningWindowWithoutASecond(t *testing.T) {
+	s := start(t)
+	if _, err := exec.LookPath("wtype"); err != nil {
+		t.Fatalf("the dev shell provides wtype: %v", err)
+	}
+	bin := buildApp(t)
+	s.display(t)
+
+	s.launch(t, bin, settingspage.PageFlag, "wm-windows")
+	s.until("settings window", func() bool { return s.settingsWindows() == 1 })
+	ctx, cancel := context.WithTimeout(context.Background(), bound)
+	defer cancel()
+	if out, err := exec.CommandContext(ctx, bin, settingspage.SettingFlag, "wm:input.touchpad.tap").CombinedOutput(); err != nil {
+		t.Fatalf("the forwarded launch: %v\n%s", err, out)
+	}
+	if n := s.settingsWindows(); n != 1 {
+		t.Fatalf("%d settings windows after a forwarded launch", n)
+	}
+	s.chooseOn(t, "tap: true")
+	if n := s.settingsWindows(); n != 1 {
+		t.Fatalf("%d settings windows", n)
+	}
+}
+
+const settle = 3 * time.Second
+
+func (s *session) chooseOn(t *testing.T, want string) {
+	t.Helper()
+	written := func() bool {
+		data, err := os.ReadFile(s.file.Runtime())
+		return err == nil && strings.Contains(string(data), want)
+	}
+	s.until("the focused control's dropdown choosing On, writing "+want, func() bool {
+		for _, key := range []string{"Escape", "space", "Home", "Down", "Return"} {
+			press(t, key)
+		}
+		deadline := time.Now().Add(settle)
+		for !written() {
+			if time.Now().After(deadline) {
+				return false
+			}
+			time.Sleep(poll)
+		}
+		return true
+	})
+}

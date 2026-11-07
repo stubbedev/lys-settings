@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/stubbedev/lys-shell/config"
@@ -124,14 +125,25 @@ func sharePickerPage(*config.Config) pageSpec {
 	}
 }
 
-// Pages lists the pages in sidebar order, localized.
 func Pages(cfg *config.Config) []settingspage.Page {
 	t := locale.T()
+	sections := layout(cfg)
 	out := []settingspage.Page{}
-	for _, s := range layout(cfg) {
+	at := map[string]int{}
+	for _, s := range sections {
 		for _, p := range s.pages {
+			at[p.id] = len(out)
 			out = append(out, settingspage.Page{ID: p.id, Title: t.Get(p.navKey), Icon: p.icon})
 		}
+	}
+	listed := map[string]bool{}
+	for _, e := range settingIndex(sections) {
+		if e.path == "" || listed[e.path] {
+			continue
+		}
+		listed[e.path] = true
+		page := &out[at[e.page]]
+		page.Settings = append(page.Settings, settingspage.Setting{Path: e.path, Title: e.label, Keywords: e.listedKeywords()})
 	}
 	return out
 }
@@ -140,15 +152,33 @@ func Pages(cfg *config.Config) []settingspage.Page {
 // touching the config: which pages exist does not depend on it.
 func ListedPages() []settingspage.Page { return Pages(config.Defaults()) }
 
-// pageArg is the --page value of a forwarded command line, "" for none.
-func pageArg(args []string) string {
+type launch struct {
+	page, setting string
+}
+
+func parseLaunch(args []string) launch {
+	return launch{page: flagValue(args, settingspage.PageFlag), setting: flagValue(args, settingspage.SettingFlag)}
+}
+
+func flagValue(args []string, flag string) string {
 	for i, a := range args {
-		if a == "--page" && i+1 < len(args) {
+		if a == flag && i+1 < len(args) {
 			return args[i+1]
 		}
-		if v, ok := strings.CutPrefix(a, "--page="); ok {
+		if v, ok := strings.CutPrefix(a, flag+"="); ok {
 			return v
 		}
 	}
 	return ""
+}
+
+func CheckSetting(page, path string) error {
+	hit, ok := findSetting(settingIndex(layout(config.Defaults())), path)
+	if !ok {
+		return fmt.Errorf("no setting %q", path)
+	}
+	if page != "" && page != hit.page {
+		return fmt.Errorf("setting %q is on page %q, not %q", path, hit.page, page)
+	}
+	return nil
 }

@@ -2451,17 +2451,20 @@ func TestOpenPageShowsAndMarksThePage(t *testing.T) {
 	}
 }
 
-func TestPageArg(t *testing.T) {
+func TestParseLaunch(t *testing.T) {
 	for _, tc := range []struct {
 		args []string
-		want string
+		want launch
 	}{
-		{[]string{"--page", "theme"}, "theme"},
-		{[]string{"--page=theme"}, "theme"},
-		{[]string{"--page"}, ""},
-		{nil, ""},
+		{[]string{"--page", "theme"}, launch{page: "theme"}},
+		{[]string{"--page=theme"}, launch{page: "theme"}},
+		{[]string{"--page"}, launch{}},
+		{[]string{"--setting", "bar.location"}, launch{setting: "bar.location"}},
+		{[]string{"--page", "bar-general", "--setting=bar.location"}, launch{page: "bar-general", setting: "bar.location"}},
+		{[]string{"--setting"}, launch{}},
+		{nil, launch{}},
 	} {
-		if got := pageArg(tc.args); got != tc.want {
+		if got := parseLaunch(tc.args); got != tc.want {
 			t.Errorf("%v = %q, want %q", tc.args, got, tc.want)
 		}
 	}

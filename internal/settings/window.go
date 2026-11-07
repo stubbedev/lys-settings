@@ -25,8 +25,9 @@ const (
 	// the transition plus a buffer (TRANSITION_CLEANUP_BUFFER_MS).
 	pageCleanup = pageTransition + 50*time.Millisecond
 	// maxSidebarRem caps the sidebar drag (MAX_SIDEBAR_REM).
-	maxSidebarRem = 25.0
-	basePxPerRem  = 16.0
+	maxSidebarRem   = 25.0
+	basePxPerRem    = 16.0
+	revealHighlight = 2 * time.Second
 )
 
 // window is SettingsApp's widget tree: the sidebar beside the page
@@ -54,6 +55,8 @@ type window struct {
 	// onClose closes the window; onResetAll asks before every runtime
 	// override is dropped.
 	onClose, onResetAll func()
+	pending             launch
+	presented           bool
 }
 
 func newWindow(k *kit, cfg *config.Config, after func(time.Duration, func())) *window {
@@ -164,8 +167,18 @@ func (w *window) filter(query string) {
 func (w *window) jump(hit settingEntry) {
 	w.search.SetText("")
 	w.openPage(hit.page)
-	if w.pageID == hit.page {
-		w.page.reveal(hit.row, w.focus)
+	if w.pageID != hit.page {
+		return
+	}
+	if row := w.page.reveal(hit.row, w.focus); row != nil {
+		row.title.AddClass(css.Accent)
+		w.after(revealHighlight, func() { row.title.RemoveClass(css.Accent) })
+	}
+}
+
+func (w *window) openSetting(path string) {
+	if hit, ok := findSetting(w.index, path); ok {
+		w.jump(hit)
 	}
 }
 
@@ -199,4 +212,39 @@ func (w *window) refresh() {
 	if w.page != nil {
 		w.page.refresh()
 	}
+}
+
+func (w *window) open(l launch) {
+	if l.setting != "" {
+		w.openSetting(l.setting)
+		return
+	}
+	w.openPage(l.page)
+}
+
+func (w *window) pageOf(l launch) string {
+	if hit, ok := findSetting(w.index, l.setting); ok {
+		return hit.page
+	}
+	return l.page
+}
+
+func (w *window) request(l launch) {
+	if l == (launch{}) {
+		return
+	}
+	if !w.presented {
+		w.pending = l
+		w.openPage(w.pageOf(l))
+		return
+	}
+	w.open(l)
+}
+
+func (w *window) presentedFirst() {
+	if w.presented {
+		return
+	}
+	w.presented = true
+	w.open(w.pending)
 }

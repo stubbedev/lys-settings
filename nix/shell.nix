@@ -23,6 +23,7 @@
         # What the tests hold the app to, and the compositor the end-to-end test
         # starts in a private runtime directory.
         inputs.lys-wm.packages.${pkgs.stdenv.hostPlatform.system}.default
+        wtype
       ];
 
       LD_LIBRARY_PATH = lib.makeLibraryPath self'.packages.default.libs;

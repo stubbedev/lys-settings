@@ -22,10 +22,13 @@ const usage = `Configure the lys desktop's shell and compositor
 Usage: lys-settings [OPTIONS]
 
 Options:
-      --page <PAGE>  Open on this settings page
-      --list-pages   Print the pages as JSON and exit
-  -h, --help         Print help
-  -V, --version      Print version
+      --page <PAGE>     Open on this settings page
+      --setting <PATH>  Open on the page holding this setting, with it focused:
+                        a lys-shell config path, or wm:<path> for lys-wm's
+                        (wm: may be left out where lys-shell has no such path)
+      --list-pages      Print the pages and their settings as JSON and exit
+  -h, --help            Print help
+  -V, --version         Print version
 `
 
 const (
@@ -41,6 +44,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	flags.SetOutput(io.Discard)
 	flags.Usage = func() {}
 	page := flags.String("page", "", "")
+	setting := flags.String("setting", "", "")
 	list := flags.Bool("list-pages", false, "")
 	long := flags.Bool("version", false, "")
 	short := flags.Bool("V", false, "")
@@ -62,7 +66,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case *list:
 		return report(stderr, listPages(stdout))
 	}
-	return report(stderr, settings.Run(*page))
+	if *setting != "" {
+		if err := settings.CheckSetting(*page, *setting); err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return exitUsage
+		}
+	}
+	return report(stderr, settings.Run(*page, *setting))
 }
 
 func listPages(stdout io.Writer) error {

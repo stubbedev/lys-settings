@@ -175,6 +175,7 @@ type settingRow struct {
 	be    backend
 	path  string
 	ctl   control
+	title *widget.Label
 	badge *widget.Badge
 	reset *widget.Button
 	// problem says why the last value the control wrote was refused.
@@ -243,6 +244,7 @@ func newSettingRow(k *kit, be backend, spec rowSpec, ctl control) *settingRow {
 	info := widget.NewBox(widget.Column, th.Spacing/4, 0)
 	labelRow := widget.NewBox(widget.Row, th.Spacing/2, 0)
 	title := k.label(t.Get(spec.labelKey()), "setting-label")
+	r.title = title
 	title.SetEllipsize(widget.EllipsizeEnd)
 	title.SetTooltip(t.Get(spec.labelKey()))
 	labelRow.AppendAligned(title, false, widget.AlignCenter)
