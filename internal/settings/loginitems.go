@@ -430,25 +430,8 @@ func (l *loginItems) act(change func() error) {
 }
 
 func (l *loginItems) pickApp(anchor widget.Widget) {
-	apps := desktopentry.AllApps(desktopentry.ApplicationDirs())
-	names := make([]string, 0, len(apps))
-	byName := make(map[string]desktopentry.App, len(apps))
-	for _, a := range apps {
-		if !a.ShouldShow() {
-			continue
-		}
-		name := a.DisplayName() + " (" + a.ID + ")"
-		names = append(names, name)
-		byName[name] = a
-	}
-	slices.Sort(names)
-	openSearchPicker(l.k, anchor, names, pickerSpec{
-		class: "choice-popover", placeholder: "settings-choice-search", maxH: choiceListPx,
-		row: func(k *kit, name string) widget.Widget { return k.label(name) },
-	}, func(name string) {
-		if app, ok := byName[name]; ok {
-			l.act(func() error { return addAutostart(l.dirs, app) })
-		}
+	openAppPicker(l.k, anchor, scanInstalled(desktopentry.ApplicationDirs()).shown, func(app desktopentry.App) {
+		l.act(func() error { return addAutostart(l.dirs, app) })
 	})
 }
 

@@ -360,3 +360,36 @@ func TestTabReachesEveryLoginItemSwitch(t *testing.T) {
 		t.Fatalf("toggled %v", manager.toggled)
 	}
 }
+
+func TestTheAddAppPickerOffersShownAppsAndAddsThePickedOne(t *testing.T) {
+	d, root := autostartFixture(t)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(d.user))
+	t.Setenv("XDG_CONFIG_DIRS", filepath.Join(root, "etc")+":"+filepath.Join(root, "vendor"))
+	t.Setenv("XDG_DATA_HOME", root)
+	t.Setenv("XDG_DATA_DIRS", filepath.Join(root, "none"))
+	put(t, filepath.Join(root, "applications", "org.example.Notes.desktop"), "[Desktop Entry]\nType=Application\nName=Notes\nExec=true\nIcon=notes\n")
+	put(t, filepath.Join(root, "applications", "secret.desktop"), "[Desktop Entry]\nType=Application\nName=Secret\nExec=true\nNoDisplay=true\n")
+	before := openUserManager
+	openUserManager = func() (userManager, func(), error) { return &staticManager{}, func() {}, nil }
+	t.Cleanup(func() { openUserManager = before })
+	k := testKit(t, "")
+	f := &fakePickers{}
+	k.pickers = f
+	footer := loginItemsFooter(k)
+	treetest.Button(t, footer, "Add app…").ClickAt(widget.Point{})
+	if f.content == nil {
+		t.Fatal("Add app opened no picker")
+	}
+	flow := treetest.First[*widget.FlowBox](t, f.content)
+	if got := shownLabels(flow); !slices.Equal(got, []string{"Notes"}) {
+		t.Fatalf("offered %q, want the shown app alone", got)
+	}
+	if got := treetest.First[*widget.Icon](t, flow).Name(); got != "notes" {
+		t.Fatalf("the offered app shows icon %q", got)
+	}
+	flow.OnActivate(0)
+	if got := fileText(t, filepath.Join(d.user, "org.example.Notes.desktop")); !strings.Contains(got, "Name=Notes") {
+		t.Fatalf("picking Notes wrote %q", got)
+	}
+	noFile(t, filepath.Join(d.user, "secret.desktop"))
+}

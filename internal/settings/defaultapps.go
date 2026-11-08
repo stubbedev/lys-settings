@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -14,9 +13,8 @@ import (
 )
 
 const (
-	defaultAppsID    = "default-apps"
-	fileTypesShown   = 40
-	defaultsIconSize = 16
+	defaultAppsID  = "default-apps"
+	fileTypesShown = 40
 )
 
 type appCategory struct {
@@ -83,9 +81,7 @@ func (ix appIndex) candidates(types []string) []desktopentry.App {
 			out = append(out, a)
 		}
 	}
-	slices.SortFunc(out, func(a, b desktopentry.App) int {
-		return cmp.Or(cmp.Compare(strings.ToLower(a.DisplayName()), strings.ToLower(b.DisplayName())), cmp.Compare(a.ID, b.ID))
-	})
+	slices.SortFunc(out, byDisplayName)
 	return out
 }
 
@@ -180,7 +176,7 @@ func (d *defaultApps) chooser(title string, types []string) widget.Widget {
 			selected = len(items)
 		}
 		icon := a.Icon()
-		items = append(items, widget.DropdownRow{Label: a.DisplayName(), Leading: func() widget.Widget { return widget.NewThemeIcon(icon, defaultsIconSize) }})
+		items = append(items, widget.DropdownRow{Label: a.DisplayName(), Leading: func() widget.Widget { return widget.NewThemeIcon(icon, appIconPx) }})
 	}
 	offset := len(items) - len(apps)
 	dd := widget.NewDropdownRows(d.k.face, d.k.textPx(), items, selected)
