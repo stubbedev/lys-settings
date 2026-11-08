@@ -315,6 +315,25 @@ func (m *staticManager) setEnabled(_ context.Context, name string, on bool) erro
 	return nil
 }
 
+func TestTestsNeverReadTheHostsAutostartEntries(t *testing.T) {
+	var read []string
+	if _, err := readAutostart(systemHost.autostartDirs(), []string{"lys-wm"}, func(dir string) ([]fs.DirEntry, error) {
+		read = append(read, dir)
+		return nil, fs.ErrNotExist
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(read) == 0 {
+		t.Fatal("no autostart directory was read")
+	}
+	home := os.Getenv("HOME")
+	for _, dir := range read {
+		if !strings.HasPrefix(dir, home+"/") && !strings.HasPrefix(dir, noHostDir+"/") {
+			t.Errorf("a test reads the host's autostart directory %s", dir)
+		}
+	}
+}
+
 func TestTabReachesEveryLoginItemSwitch(t *testing.T) {
 	d, root := autostartFixture(t)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(d.user))
