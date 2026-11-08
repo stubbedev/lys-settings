@@ -1,84 +1,65 @@
 # How it works
 
-lys-settings links neither project's internals. Each project's parser stays the one
-source of truth for its config.
-
-Both backends work the same way: a change is a runtime override, written to the
-project's `runtime.yaml` above the declared `config.yaml`, which the app only
-reads. A `config.yaml` that Home Manager links into the Nix store therefore stays
-usable. Each row shows where its value comes from (an override, `config.yaml`, or the
-default), **Reset** drops that row's override, and **Reset all** drops every override
-of both.
+lys-settings holds no copy of either project's config rules. Each project's parser
+is the single source of truth.
 
 ## lys-shell
 
-Through its public, versioned Go packages: `config` for the fields, the layers and
-runtime overrides; `styling` and `shell/apptheme` for the theme, so the window looks
-like the shell; `i18n` for the field labels. The app's own messages sit on top of
-those labels.
+lys-settings uses lys-shell's public Go packages, pinned in `go.mod`:
+
+| Package | Used for |
+| --- | --- |
+| `config` | Fields, defaults, config layers and runtime overrides |
+| `styling`, `shell/apptheme` | The window's theme, matching the shell |
+| `i18n` | Field labels; the app's own messages sit on top |
+| `settingspage` | The launcher contract below |
 
 ## lys-wm
 
-lys-wm's config package imports the whole compositor, so the contract is the flags
-of the `lys-wm` on the path:
+lys-settings does not link lys-wm. It runs the `lys-wm` on `PATH`:
 
-| Flag | Gives |
+| Command | Gives |
 | --- | --- |
-| `--config-schema` | Every key, with the choices, bounds, formats and defaults its tests hold to the parser |
-| `--default-config` | The built-in config, which applies under the overrides when there is no `config.yaml` |
-| `--check-config --runtime <file>` | Whether a reload would accept that override file over the real config, and why not |
-| `--effective-config` | Which layer each key comes from; the end-to-end test holds the app's view to it |
+| `lys-wm --config-schema` | Every key, with its choices, bounds, format and default |
+| `lys-wm --default-config` | The built-in config, which applies under the overrides when there is no `config.yaml` |
+| `lys-wm --check-config --runtime <file>` | Whether a reload would accept the override file over the real config, and why not |
+| `lys-wmctl reload` | Makes a running lys-wm reload; exit status 3 means none is running |
 
-The overrides live in `$XDG_CONFIG_HOME/lys-wm/runtime.yaml`. lys-wm merges them
-over `config.yaml`, or over its built-in config when there is none: mappings key by
-key, a scalar or a list whole. The file holds only the keys changed here.
-
-Asking the installed binary means a key an older lys-wm lacks is refused by that
-lys-wm, rather than being written for a reload to reject. `lys-wmctl reload` exits 3
-when no lys-wm answers, which the app reports as "saved, for the next one".
-
-## One accent
-
-The accent is lys-shell's `styling.palette.primary` and nothing else. lys-shell
-serves it as xdg-desktop-portal's `accent-color`, and lys-wm's `accent` palette
-colour, which its focus border and active tab default to, follows that setting
-live. Picking an accent here therefore recolours lys-wm's focus border without a
-reload and without a second row. A `borders.active` or `palette.accent` set on
-the lys-wm pages still wins.
+lys-wm merges overrides over `config.yaml`, or over its built-in config when there
+is none: mappings key by key, scalars and lists whole.
 
 ## The launcher
 
-lys-shell's launcher runs `lys-settings --list-pages`, which prints the pages and every
-setting on them (path, title and keywords) as JSON in the desktop's language without a
-session or reading any config, and opens a page with `lys-settings --page <id>` or a
-setting with `lys-settings --setting <path>`. A setting path is a lys-shell config path
-(`bar.location`) or `wm:` and a lys-wm one (`wm:input.touchpad.natural_scroll`); the
-`wm:` may be left out where lys-shell has no such path. The setting's page opens with
-its control focused and its label highlighted, in the running window when there is one,
-and an unknown path exits 2. Synonyms a search should find a row by sit beside its
-label in the locale files, as a `.keywords` attribute. lys-shell's `settingspage`
-package holds that contract and both ends use it. Without lys-settings installed the launcher logs why and offers
-no rows.
+lys-shell's launcher runs `lys-settings --list-pages`. It prints every page and
+each setting's path, title and keywords as JSON, in the desktop's language,
+without a session and without reading any config. The launcher opens a page with
+`--page <id>` and a setting with `--setting <path>`. The window focuses the
+setting's control and highlights its label, in the running window when there is
+one. Search synonyms for a row are a `.keywords` attribute on its label in the
+locale files.
 
 ## Editors
 
-Each row's editor comes from its field's type: lys-shell's `FieldMeta.Type` (`Monitor`,
-`IconTheme`, `Directory`, `Command`, `Secret`, `StrftimeFormat`, ...) and placeholders,
-or the `format` lys-wm's schema gives a key (`lys-wm-color`, `lys-wm-font-file`,
-`lys-wm-xkb-layout`, ...). A value the system can list offers the list, with the
-type's special values (`auto`, `primary`, the default) first: connected outputs from
-`/sys/class/drm`, icon and cursor themes from the icon directories, xkeyboard-config's
-registry, DRM cards under `/dev/dri`, network interfaces, hwmon sensors, the audio
-daemon's sources, `/etc/pam.d`, font files, programs on `PATH` and terminal
-emulators' desktop entries. The entry still takes any value, and a value the list
-lacks is kept and marked as not found. A format field offers its placeholders and
-previews the result with each one's sample.
+A row's editor comes from its field's type: lys-shell's field type (`Monitor`,
+`IconTheme`, `Directory`, `Command`, `Secret`, `StrftimeFormat`, ...) or the
+`format` lys-wm's schema gives a key (`lys-wm-color`, `lys-wm-font-file`,
+`lys-wm-xkb-layout`, ...).
 
-A text row whose value is neither listable nor structured is a deliberate choice: a
-test walks every page and fails on a plain text row that is not on its free-form
-list.
+Where the system can list the values, the editor offers the list, with special
+values (`auto`, `primary`, the default) first:
+
+- connected outputs from `/sys/class/drm` and DRM cards under `/dev/dri`;
+- icon and cursor themes;
+- xkeyboard-config layouts, variants, options, models and rules;
+- network interfaces and hwmon sensors;
+- audio sources;
+- PAM services in `/etc/pam.d`;
+- font files, programs on `PATH` and terminal emulators.
+
+The entry still accepts any value; one the list lacks is kept and marked as not
+found. A format field offers its placeholders and previews the result.
 
 ## Icons
 
-The icons the pages name are installed under `share/lys-settings/icons`, which the
-app adds to the search path, so no file belongs to both this package and lys-shell's.
+The icons the pages use are installed under `share/lys-settings/icons`, which the
+app adds to its icon search path. No file is shared with lys-shell's package.

@@ -4,7 +4,7 @@ layout: home
 hero:
   name: lys-settings
   text: Settings for the lys desktop
-  tagline: One window for lys-shell and lys-wm. It reads each project's own config rules and never keeps a copy of them.
+  tagline: One window for lys-shell, lys-wm and the system services they use.
   image:
     src: /lys-settings.svg
     alt: lys-settings
@@ -21,11 +21,11 @@ hero:
 
 features:
   - title: Your config stays yours
-    details: Every change is a runtime override above the config.yaml you declare, which is only ever read. A lys-wm override replaces only the bytes of its value, and an edit that would change more than its key is refused.
+    details: Changes are runtime overrides over the config.yaml you declare, which is only read. A lys-wm edit changes only the bytes of its value.
   - title: Checked before it is written
-    details: lys-wm's own parser checks every change before the override file is replaced, and a running lys-wm reloads it after. A refused change leaves the file untouched and says why.
+    details: lys-wm's own parser checks every change before the override file is replaced, and a running lys-wm reloads it. A refused change leaves the file untouched and shows why.
   - title: Works with Home Manager
-    details: A config that is a read-only link into the Nix store keeps working. Changes land as overrides you can reset per setting or all at once.
-  - title: Tested on a real lys-wm
-    details: The end-to-end test starts a headless lys-wm in a private runtime directory, changes its config through the app's code, reads the result back over IPC, and opens the real window on it.
+    details: A config linked read-only into the Nix store stays editable through overrides.
+  - title: No copied rules
+    details: Fields, defaults and validation come from lys-shell's Go packages and the installed lys-wm.
 ---
