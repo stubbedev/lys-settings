@@ -334,6 +334,37 @@ func TestTestsNeverReadTheHostsAutostartEntries(t *testing.T) {
 	}
 }
 
+func TestALongLoginItemNameStaysInsideThePage(t *testing.T) {
+	for _, scale := range []string{"1", "2"} {
+		t.Run("scale "+scale, func(t *testing.T) {
+			d, root := autostartFixture(t)
+			put(t, filepath.Join(d.user, "long.desktop"), "[Desktop Entry]\nType=Application\nName="+strings.Repeat("x", 400)+"\nExec=true\n")
+			t.Setenv("XDG_CONFIG_HOME", filepath.Dir(d.user))
+			t.Setenv("XDG_CONFIG_DIRS", filepath.Join(root, "etc")+":"+filepath.Join(root, "vendor"))
+			before := openUserManager
+			openUserManager = func() (userManager, func(), error) { return &staticManager{}, func() {}, nil }
+			t.Cleanup(func() { openUserManager = before })
+			win := laidOutPage(t, "styling:\n  scale: "+scale+"\n", loginItemsID, windowWidth)
+			rows := treetest.WithClass(win.page, "login-item")
+			if len(rows) == 0 {
+				t.Fatal("the page laid out no login item")
+			}
+			inside := func(x widget.Widget) {
+				t.Helper()
+				if b := x.(widget.Boundser).Bounds(); b.X+b.W > windowWidth {
+					t.Errorf("%T at %v reaches past the %dpx window", x, b, windowWidth)
+				}
+			}
+			for _, row := range rows {
+				inside(row)
+			}
+			for _, sw := range treetest.All[*widget.Switch](win.page) {
+				inside(sw)
+			}
+		})
+	}
+}
+
 func TestTabReachesEveryLoginItemSwitch(t *testing.T) {
 	d, root := autostartFixture(t)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(d.user))

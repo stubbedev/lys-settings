@@ -377,6 +377,7 @@ func (l *loginItems) showApps(r autostartListing) {
 func (l *loginItems) itemRow(icon, name, detail string) *widget.Item {
 	row := widget.NewItem(l.k.face, name, detail)
 	row.AddClass(css.Small, "login-item")
+	row.SetEllipsize(true)
 	if icon != "" {
 		row.SetMedia(l.k.icon(icon, "login-item-icon"), false)
 	}
