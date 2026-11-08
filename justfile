@@ -32,11 +32,11 @@ no-fused:
 # Run the test suite for every package, the end-to-end test against a headless
 # lys-wm in a private runtime directory included.
 test:
-    LYS_SETTINGS_HEADLESS=1 go test -count=1 -shuffle=on ./...
+    LYS_SETTINGS_HEADLESS=1 go test ${LYS_TEST_ARGS--count=1 -shuffle=on} ./...
 
 # Every package under the race detector, which needs cgo.
 race:
-    CGO_ENABLED=1 LYS_SETTINGS_HEADLESS=1 go test -race -count=1 -shuffle=on ./...
+    CGO_ENABLED=1 LYS_SETTINGS_HEADLESS=1 go test -race ${LYS_TEST_ARGS--count=1 -shuffle=on} ./...
 
 # Compile-check every package; the output is discarded.
 build:
