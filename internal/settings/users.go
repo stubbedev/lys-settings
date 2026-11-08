@@ -328,6 +328,9 @@ func (p *usersPanel) load() {
 	}, func(o accountsOpened) {
 		p.conn = o.conn
 		if o.err != nil {
+			t := locale.T()
+			p.realName.SetPlaceholder(t.Get("settings-users-name-unavailable"))
+			p.realName.SetTooltip(t.Attr("settings-users-name-unavailable", "description"))
 			if acct, err := currentAccount(); err == nil {
 				p.user = acct
 			}

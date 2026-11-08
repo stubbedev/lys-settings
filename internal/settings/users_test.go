@@ -22,6 +22,8 @@ import (
 	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 type fakeAccounts struct {
@@ -133,6 +135,9 @@ func TestWithoutAccountsServiceTheAvatarIsWrittenToFace(t *testing.T) {
 	l.drain(100 * time.Millisecond)
 	if p.realName.Enabled() || p.admin.Visible() {
 		t.Fatal("the name or the admin section without AccountsService")
+	}
+	if got, want := p.realName.Placeholder(), locale.T().Get("settings-users-name-unavailable"); got != want {
+		t.Fatalf("the name without AccountsService reads %q, want %q", got, want)
 	}
 	treetest.WithClass(p, "avatar-choice")[1].(*widget.Button).OnClick()
 	l.until("~/.face", func() bool { _, err := os.Stat(filepath.Join(home, ".face")); return err == nil })
