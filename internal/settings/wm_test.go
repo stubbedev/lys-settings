@@ -988,3 +988,13 @@ func TestAnUnlistedDRMDeviceIsKeptAndMarked(t *testing.T) {
 		t.Fatalf("%v %v", got, c.unknown.Visible())
 	}
 }
+
+func TestALongCardTitleShrinksInsteadOfWideningTheList(t *testing.T) {
+	long := "exec lys-shell launcher -show clipboard && wtype -M ctrl v -m ctrl && notify-send \"Pasted selection\" " + strings.Repeat("and more ", 20)
+	k, w, _, _ := wmKit(t, "binds:\n  - {chord: SUPER + V, action: '"+strings.ReplaceAll(long, "'", "''")+"'}\n")
+	c := fieldControl(k, w, wmObjects("binds", "chord", "action")).(*cardList)
+	short := fieldControl(k, w, wmObjects("binds", "chord")).(*cardList)
+	if got, base := c.Measure(widget.Row, widget.Unknown).Min, short.Measure(widget.Row, widget.Unknown).Min; got > base {
+		t.Fatalf("a long title makes the list at least %dpx wide, a short one %dpx", got, base)
+	}
+}

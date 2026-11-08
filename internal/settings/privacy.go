@@ -10,6 +10,7 @@ import (
 
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/desktopentry"
 	"github.com/stubbedev/lys-shell/portal/permissions"
 	"github.com/stubbedev/lys-shell/settingspage"
 	"github.com/stubbedev/lys-ui/widget"
@@ -68,28 +69,38 @@ type grantsListing struct {
 
 type grantsList struct {
 	*widget.Box
-	k       *kit
-	store   grantStore
-	release func()
-	stop    func()
-	rows    *widget.Box
-	view    *widget.Dropdown
-	apps    []permissions.App
-	failure string
-	problem string
+	k         *kit
+	store     grantStore
+	release   func()
+	stop      func()
+	rows      *widget.Box
+	view      *widget.Dropdown
+	apps      []permissions.App
+	installed installedApps
+	failure   string
+	problem   string
 }
+
+// unidentifiedApp is the app ID xdg-desktop-portal records for a caller
+// whose ID it could not read.
+const unidentifiedApp = "[Invalid UTF-8]"
 
 func grantsFooter(k *kit) widget.Widget {
 	t := locale.T()
-	l := &grantsList{Box: gapBox(widget.Column), k: k, rows: gapBox(widget.Column)}
-	l.AddClass("settings-section")
-	l.Append(k.label(t.Get("settings-section-app-permissions"), "settings-section-title"), false)
+	l := &grantsList{Box: sectionStack(), k: k, rows: widget.NewBox(widget.Column, 0, 0)}
 	l.view = widget.NewDropdown(k.face, k.textPx(), []string{t.Get("settings-privacy-by-app"), t.Get("settings-privacy-by-permission")}, grantsByApp)
 	l.view.SetAccessibleName(t.Get("settings-privacy-view"))
 	l.view.OnSelect = func(int) { l.render() }
-	l.view.SetHAlign(widget.AlignStart)
-	l.Append(l.view, false)
-	l.Append(l.rows, false)
+	body := widget.NewBox(widget.Column, 0, 0)
+	body.Append(panelRow(k, t.Get("settings-privacy-view"), "", l.view), false)
+	body.Append(widget.NewSeparator(widget.Horizontal), false)
+	body.Append(l.rows, false)
+	l.Append(newSection(k, "settings-section-app-permissions", body), false)
+	dirs := desktopentry.ApplicationDirs()
+	async(k, func() installedApps { return scanInstalled(dirs) }, func(ix installedApps) {
+		l.installed = ix
+		l.render()
+	})
 	store, release, err := openGrants()
 	if err != nil {
 		l.problem = err.Error()
@@ -139,16 +150,18 @@ func (l *grantsList) reload() {
 func (l *grantsList) render() {
 	t := locale.T()
 	l.rows.Clear()
+	group := widget.NewItemGroup()
+	l.rows.Append(group, false)
 	if l.failure != "" {
-		l.rows.Append(wrapped(l.k.label(l.failure, css.Error, css.Caption)), false)
+		group.Append(insetRow(wrapped(l.k.label(l.failure, css.Error, css.Caption))))
 		l.failure = ""
 	}
 	switch {
 	case l.problem != "":
-		l.rows.Append(wrapped(l.k.label(l.problem, css.Error, css.Caption)), false)
+		group.Append(insetRow(wrapped(l.k.label(l.problem, css.Error, css.Caption))))
 		return
 	case len(l.apps) == 0:
-		l.rows.Append(l.k.label(t.Get("settings-privacy-none"), css.DimLabel), false)
+		group.Append(l.k.emptyRow("ld-shield-check-symbolic", t.Get("settings-privacy-none")))
 		return
 	}
 	if l.view.Selected() == grantsByTable {
@@ -160,36 +173,64 @@ func (l *grantsList) render() {
 						continue
 					}
 					if first {
-						l.rows.Append(l.k.label(t.Get("settings-privacy-table-"+string(table)), "settings-privacy-app", css.Heading), false)
+						header := widget.NewItem(l.k.face, t.Get("settings-privacy-table-"+string(table)), "")
+						header.AddClass("settings-privacy-app")
+						group.Append(header)
 						first = false
 					}
-					l.rows.Append(l.grantRow(app.ID, g, app.ID+" · "+g.ID), false)
+					group.Append(l.grantRow(app.ID, g, l.appTitle(app.ID)+" · "+g.ID))
 				}
 			}
 		}
 		return
 	}
 	for _, app := range l.apps {
-		l.rows.Append(l.k.label(app.ID, "settings-privacy-app", css.Heading), false)
+		group.Append(l.appHeader(app.ID))
 		for _, g := range app.Grants {
-			l.rows.Append(l.grantRow(app.ID, g, t.Get("settings-privacy-table-"+string(g.Table))+" · "+g.ID), false)
+			group.Append(l.grantRow(app.ID, g, t.Get("settings-privacy-table-"+string(g.Table))+" · "+g.ID))
 		}
 	}
 }
 
+// appTitle names the app an ID stands for: its installed name, the apps
+// outside a sandbox for the empty ID, or the ID itself.
+func (l *grantsList) appTitle(id string) string {
+	t := locale.T()
+	switch id {
+	case "":
+		return t.Get("settings-privacy-host-apps")
+	case unidentifiedApp:
+		return t.Get("settings-privacy-unknown-app")
+	}
+	if a, ok := l.installed.byID[id]; ok && a.DisplayName() != "" {
+		return a.DisplayName()
+	}
+	return id
+}
+
+func (l *grantsList) appHeader(id string) *widget.Item {
+	title := l.appTitle(id)
+	detail := ""
+	if title != id && id != unidentifiedApp {
+		detail = id
+	}
+	header := widget.NewItem(l.k.face, title, detail)
+	header.AddClass("settings-privacy-app")
+	icon := appFallbackIcon
+	if a, ok := l.installed.byID[id]; ok && a.Icon() != "" {
+		icon = a.Icon()
+	}
+	header.SetMedia(widget.NewThemeIcon(icon, appIconPx), true)
+	return header
+}
+
 func (l *grantsList) grantRow(app string, g permissions.Grant, title string) widget.Widget {
 	t := locale.T()
-	text := gapBox(widget.Column)
-	text.Append(l.k.label(title), false)
-	if g.Value != "" {
-		text.Append(wrapped(l.k.label(g.Value, css.Caption, css.DimLabel)), false)
-	}
-	row := gapBox(widget.Row)
-	row.AddClass("settings-privacy-grant")
-	row.Append(text, true)
+	row := widget.NewItem(l.k.face, title, g.Value)
+	row.AddClass(css.Small, "settings-privacy-grant")
 	switch {
 	case slices.Contains(readOnlyTables, g.Table):
-		row.AppendAligned(l.k.label(t.Get("settings-privacy-read-only"), css.Caption, css.DimLabel), false, widget.AlignCenter)
+		row.AddAction(l.k.label(t.Get("settings-privacy-read-only"), css.Caption, css.DimLabel))
 	case slices.Contains(switchedTables, g.Table):
 		sw := widget.NewSwitch(slices.Contains(strings.Split(g.Value, ","), "yes"))
 		sw.SetAccessibleName(app + " " + t.Get("settings-privacy-table-"+string(g.Table)))
@@ -200,17 +241,17 @@ func (l *grantsList) grantRow(app string, g permissions.Grant, title string) wid
 			}
 			l.act(func(ctx context.Context, s grantStore) error { return s.Set(ctx, app, g.Table, g.ID, perms) }, "settings-privacy-set-failed")
 		}
-		row.AppendAligned(sw, false, widget.AlignCenter)
+		row.AddAction(sw)
 	default:
-		revoke := l.k.button(l.k.label(t.Get("settings-privacy-revoke")), nil, css.DestructiveAction)
-		revoke.OnClick = func() {
+		var revoke *widget.Button
+		revoke, _ = l.k.contentButton("ld-trash-2-symbolic", t.Get("settings-privacy-revoke"), func() {
 			revoke.SetEnabled(false)
 			l.act(func(ctx context.Context, s grantStore) error {
 				_, err := s.Revoke(ctx, app, g.Table, g.ID)
 				return err
 			}, "settings-privacy-revoke-failed")
-		}
-		row.AppendAligned(revoke, false, widget.AlignCenter)
+		}, css.Secondary)
+		row.AddAction(revoke)
 	}
 	return row
 }

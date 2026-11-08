@@ -7,6 +7,7 @@ import (
 
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
@@ -55,12 +56,12 @@ type layoutEditor struct {
 type zoneRef struct{ card, zone int }
 
 func newLayoutEditor(k *kit, s slot) *layoutEditor {
-	c := &layoutEditor{Box: widget.NewBox(widget.Column, 0, 0), k: k, slot: s}
+	c := &layoutEditor{Box: gapBox(widget.Column), k: k, slot: s}
 	c.AddClass("bar-layout-control")
 	c.list = gapBox(widget.Column)
 	c.list.AddClass("bar-layout-list")
 	c.Append(c.list, false)
-	add := listButton(k, "ld-plus-symbolic", "settings-layout-add", "list-control-add", func() {
+	add := addButton(k, "settings-layout-add", func() {
 		c.layouts = append(c.layouts, config.BarLayout{Show: true})
 		c.commit()
 		c.rebuild()
@@ -235,7 +236,7 @@ func (c *layoutEditor) zoneRow(at zoneRef, labels *widget.SizeGroup) widget.Widg
 // modules' chips, either dismissible and dragged by its body.
 func (c *layoutEditor) chip(item config.BarItem) *widget.Chip {
 	if item.Group == nil {
-		chip := widget.NewChip(c.k.face, string(item.Module))
+		chip := widget.NewChip(c.k.face, moduleTitle(item.Module))
 		chip.SetOnDismiss(func() { c.removeItem(chip) })
 		return chip
 	}
@@ -254,7 +255,7 @@ func (c *layoutEditor) chip(item config.BarItem) *widget.Chip {
 	}
 	content.AppendAligned(name, false, widget.AlignCenter)
 	for m, mod := range item.Group.Modules {
-		sub := widget.NewChip(c.k.face, string(mod.Module))
+		sub := widget.NewChip(c.k.face, moduleTitle(mod.Module))
 		sub.SetOnDismiss(func() {
 			g := c.group(chip)
 			g.Modules = slices.Delete(g.Modules, m, m+1)
@@ -334,6 +335,16 @@ func (c *layoutEditor) moduleNames() []string {
 	return names
 }
 
+// moduleTitle is how the layout names a module: its own message, or a
+// custom module by its id.
+func moduleTitle(m config.BarModule) string {
+	t := locale.T()
+	if id, ok := m.CustomID(); ok {
+		return t.Get("settings-module-custom", i18n.Str("id", id))
+	}
+	return t.Get("settings-module-" + string(m))
+}
+
 // pickModule opens the module picker (module_picker) beside anchor.
 func (c *layoutEditor) pickModule(anchor widget.Widget, pick func(config.BarModule)) *searchPicker {
 	if c.k.pickers == nil {
@@ -342,8 +353,9 @@ func (c *layoutEditor) pickModule(anchor widget.Widget, pick func(config.BarModu
 	return openSearchPicker(c.k, anchor, c.moduleNames(), pickerSpec{
 		class: "module-picker-popover", placeholder: "settings-layout-search", maxH: modulePickerListPx, searchEntry: true,
 		row: func(k *kit, name string) widget.Widget {
-			return k.label(name)
+			return k.label(moduleTitle(config.BarModule(name)))
 		},
+		text: func(name string) string { return moduleTitle(config.BarModule(name)) + " " + name },
 	}, func(name string) {
 		var m config.BarModule
 		if m.UnmarshalConfig(name) == nil {

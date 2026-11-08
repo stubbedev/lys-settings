@@ -339,3 +339,16 @@ func TestShowingThePageListsEachTableOnceAndAHiddenOneNothing(t *testing.T) {
 		t.Fatalf("a hidden page asked the store again: %v %d", again, more)
 	}
 }
+
+func TestAGrantNamesTheAppReadablyEvenWithoutAnID(t *testing.T) {
+	l := &grantsList{}
+	for id, want := range map[string]string{
+		"":              locale.T().Get("settings-privacy-host-apps"),
+		unidentifiedApp: locale.T().Get("settings-privacy-unknown-app"),
+		"org.app":       "org.app",
+	} {
+		if got := l.appTitle(id); got != want {
+			t.Errorf("%q reads %q, want %q", id, got, want)
+		}
+	}
+}

@@ -83,35 +83,38 @@ var openKeyring = func(ctx context.Context) (*client.Client, func(), error) {
 
 type passwordsPanel struct {
 	*widget.Box
-	k         *kit
-	c         *client.Client
-	release   func()
-	stop      func()
-	colls     []client.Collection
-	coll      dbus.ObjectPath
-	paths     []dbus.ObjectPath
-	items     []client.Item
-	shownTo   int
-	seen      map[dbus.ObjectPath]time.Time
-	now       func() time.Time
-	problem   *widget.Label
-	picker    *widget.Dropdown
-	lock      *widget.Button
-	lockLbl   *widget.Label
-	filter    *widget.SearchEntry
-	list      *widget.Box
-	detail    *widget.Box
-	revealed  []byte
-	secretLbl *widget.Label
+	k          *kit
+	c          *client.Client
+	release    func()
+	stop       func()
+	colls      []client.Collection
+	coll       dbus.ObjectPath
+	paths      []dbus.ObjectPath
+	items      []client.Item
+	shownTo    int
+	seen       map[dbus.ObjectPath]time.Time
+	now        func() time.Time
+	problem    *widget.Label
+	picker     *widget.Dropdown
+	lock       *widget.Button
+	lockFace   *widget.ButtonContent
+	filter     *widget.SearchEntry
+	list       *widget.ItemGroup
+	rows       []widget.Widget
+	more       *widget.Button
+	expanded   dbus.ObjectPath
+	detail     *widget.Box
+	revealed   []byte
+	secretLbl  *widget.Label
+	revealFace *widget.ButtonContent
 }
 
 func passwordsFooter(k *kit) widget.Widget {
 	t := locale.T()
-	p := &passwordsPanel{Box: gapBox(widget.Column), k: k, seen: map[dbus.ObjectPath]time.Time{}, now: time.Now}
+	p := &passwordsPanel{Box: sectionStack(), k: k, seen: map[dbus.ObjectPath]time.Time{}, now: time.Now}
 	p.problem = wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	p.problem.SetVisible(false)
 	p.Append(p.problem, false)
-	head := gapBox(widget.Row)
 	p.picker = widget.NewDropdown(k.face, k.textPx(), []string{t.Get("settings-passwords-loading")}, 0)
 	p.picker.SetAccessibleName(t.Get("settings-passwords-collection"))
 	p.picker.OnSelect = func(i int) {
@@ -119,26 +122,26 @@ func passwordsFooter(k *kit) widget.Widget {
 			p.pick(p.colls[i].Path)
 		}
 	}
-	p.lockLbl = k.label(t.Get("settings-passwords-lock"))
-	p.lock = k.button(p.lockLbl, p.toggleLock, css.Small)
-	change := k.button(k.label(t.Get("settings-passwords-change")), func() {
+	p.lock, p.lockFace = k.contentButton("ld-lock-symbolic", t.Get("settings-passwords-lock"), p.toggleLock, css.Secondary)
+	change, _ := k.contentButton("ld-key-round-symbolic", t.Get("settings-passwords-change"), func() {
 		coll := p.coll
 		p.act(func(ctx context.Context) error { return p.c.ChangeLock(ctx, coll) })
-	}, css.Small)
-	head.Append(p.picker, true)
-	head.Append(p.lock, false)
-	head.Append(change, false)
-	p.Append(head, false)
+	}, css.Secondary)
+	keyring := widget.NewItemGroup(panelRow(k, t.Get("settings-passwords-collection"), "", p.picker, p.lock, change))
+	p.Append(newSection(k, "settings-section-passwords-keyring", keyring), false)
 	p.filter = widget.NewSearchEntry(k.face, k.textPx(), t.Get("settings-passwords-filter"))
 	p.filter.SetDelay(0)
 	p.filter.OnSearchChanged = func(string) { p.showItems() }
-	p.Append(p.filter, false)
-	p.list = gapBox(widget.Column)
-	p.Append(p.list, false)
-	p.detail = gapBox(widget.Column)
-	p.detail.AddClass(css.Card, "password-detail")
-	p.detail.SetVisible(false)
-	p.Append(p.detail, false)
+	p.list = widget.NewItemGroup(insetRow(p.filter))
+	p.more, _ = k.contentButton("ld-chevron-down-symbolic", t.Get("settings-passwords-more"), p.loadMore, css.Secondary)
+	p.more.SetHAlign(widget.AlignCenter)
+	p.more.SetVisible(false)
+	items := newSection(k, "settings-section-passwords-items", p.list)
+	items.Append(p.more, false)
+	p.Append(items, false)
+	p.detail = widget.NewBox(widget.Column, widget.Current().Spacing, 0)
+	p.detail.SetElement("item")
+	p.detail.AddClass("password-detail")
 	p.open()
 	return p
 }
@@ -209,9 +212,11 @@ func (p *passwordsPanel) refreshLock() {
 	c, ok := p.current()
 	p.lock.SetVisible(ok)
 	if c.Locked {
-		p.lockLbl.SetText(t.Get("settings-passwords-unlock"))
+		p.lockFace.SetIconName("ld-lock-open-symbolic")
+		p.lockFace.SetLabel(t.Get("settings-passwords-unlock"))
 	} else {
-		p.lockLbl.SetText(t.Get("settings-passwords-lock"))
+		p.lockFace.SetIconName("ld-lock-symbolic")
+		p.lockFace.SetLabel(t.Get("settings-passwords-lock"))
 	}
 }
 
@@ -242,7 +247,7 @@ func (p *passwordsPanel) pick(coll dbus.ObjectPath) {
 	}
 	p.coll = coll
 	p.hideSecret()
-	p.detail.SetVisible(false)
+	p.expanded = ""
 	p.refreshLock()
 	if stop, err := p.c.WatchItems(coll, func() { p.k.invoke(p.reload) }); err != nil {
 		p.fail(err)
@@ -293,7 +298,7 @@ func (p *passwordsPanel) load(collections bool) {
 	})
 }
 
-func (p *passwordsPanel) more() {
+func (p *passwordsPanel) loadMore() {
 	c, next := p.c, p.paths[p.shownTo:min(len(p.paths), p.shownTo+itemsPerPage)]
 	async(p.k, func() itemsListing {
 		ctx, cancel := context.WithTimeout(context.Background(), sysCallTimeout)
@@ -313,38 +318,107 @@ func (p *passwordsPanel) more() {
 
 func (p *passwordsPanel) showItems() {
 	t := locale.T()
-	p.list.Clear()
+	for _, r := range p.rows {
+		p.list.Remove(r)
+	}
+	p.rows = p.rows[:0]
+	add := func(w widget.Widget) {
+		p.list.Append(w)
+		p.rows = append(p.rows, w)
+	}
 	words := strings.Fields(strings.ToLower(p.filter.Text()))
-	rows := widget.NewItemGroup()
-	shown := 0
+	expandedShown := false
 	for _, it := range p.items {
 		text := keyringItemText(it)
 		if slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(text, w) }) {
 			continue
 		}
-		title := it.Label
-		if title == "" {
-			title = t.Get("settings-passwords-locked-item")
+		add(p.itemRow(it))
+		if it.Path == p.expanded {
+			add(p.detail)
+			expandedShown = true
 		}
-		b := p.k.button(p.k.label(title, "setting-label"), func() { p.showDetail(it) }, css.Flat, "password-item")
-		b.SetHAlign(widget.AlignFill)
-		rows.Append(b)
-		shown++
 	}
-	if shown == 0 {
-		rows.Append(p.k.label(t.Get("settings-passwords-none"), css.DimLabel))
+	if !expandedShown {
+		p.expanded = ""
+		p.hideSecret()
 	}
-	p.list.Append(rows, false)
-	if p.shownTo < len(p.paths) {
-		p.list.Append(p.k.button(p.k.label(t.Get("settings-passwords-more")), p.more, css.Small), false)
+	if len(p.rows) == 0 {
+		add(p.k.emptyRow("ld-key-round-symbolic", t.Get("settings-passwords-none")))
 	}
+	p.more.SetVisible(p.shownTo < len(p.paths))
+}
+
+func (p *passwordsPanel) itemRow(it client.Item) *widget.Item {
+	title := it.Label
+	if title == "" {
+		title = locale.T().Get("settings-passwords-locked-item")
+	}
+	row := widget.NewItem(p.k.face, title, itemSummary(it.Attributes))
+	row.AddClass("password-item")
+	row.SetEllipsize(true)
+	icon := "ld-key-round-symbolic"
+	if it.Locked {
+		icon = "ld-lock-symbolic"
+	}
+	row.SetMedia(p.k.icon(icon), false)
+	chevron := "ld-chevron-right-symbolic"
+	if it.Path == p.expanded {
+		chevron = "ld-chevron-down-symbolic"
+	}
+	row.AddAction(p.k.icon(chevron, css.DimLabel))
+	row.SetOnActivate(func() { p.toggleDetail(it) })
+	return row
+}
+
+// summaryAttributes are the attributes an item's row names it by, in order.
+var summaryAttributes = []string{"username", "user", "service", "server", "application"}
+
+// itemSummary is the line under an item's name: the account and place its
+// attributes name, else the program that stored it.
+func itemSummary(attrs map[string]string) string {
+	var parts []string
+	for _, k := range summaryAttributes {
+		if v := attrs[k]; v != "" && !slices.Contains(parts, v) {
+			parts = append(parts, v)
+		}
+	}
+	if len(parts) == 0 {
+		return storedBy(attrs)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (p *passwordsPanel) toggleDetail(it client.Item) {
+	if p.expanded == it.Path {
+		p.expanded = ""
+		p.hideSecret()
+	} else {
+		p.showDetail(it)
+	}
+	p.showItems()
 }
 
 func (p *passwordsPanel) showDetail(it client.Item) {
 	t := locale.T()
 	p.hideSecret()
+	p.expanded = it.Path
 	p.detail.Clear()
-	p.detail.SetVisible(true)
+	labels := widget.NewSizeGroup(widget.SizeGroupHorizontal)
+	field := func(name string, value widget.Widget, more ...widget.Widget) {
+		row := gapBox(widget.Row)
+		row.AppendAligned(labels.Add(p.k.label(name, css.CaptionHeading, css.DimLabel)), false, widget.AlignCenter)
+		row.AppendAligned(value, true, widget.AlignCenter)
+		for _, w := range more {
+			row.AppendAligned(w, false, widget.AlignCenter)
+		}
+		p.detail.Append(row, false)
+	}
+	text := func(name, value string) {
+		if value != "" {
+			field(name, p.k.label(value))
+		}
+	}
 	label := p.k.entry()
 	label.SetText(it.Label)
 	label.SetAccessibleName(t.Get("settings-passwords-label"))
@@ -353,37 +427,42 @@ func (p *passwordsPanel) showDetail(it client.Item) {
 		path := it.Path
 		p.act(func(ctx context.Context) error { return p.c.SetLabel(ctx, path, strings.TrimSpace(text)) })
 	}
-	p.detail.Append(panelRow(p.k, t.Get("settings-passwords-label"), "", label), false)
+	field(t.Get("settings-passwords-label"), label)
 	for _, k := range slices.Sorted(maps.Keys(it.Attributes)) {
-		p.detail.Append(panelRow(p.k, k, it.Attributes[k]), false)
+		text(k, it.Attributes[k])
 	}
-	if by := storedBy(it.Attributes); by != "" {
-		p.detail.Append(panelRow(p.k, t.Get("settings-passwords-stored-by"), by), false)
-	}
+	text(t.Get("settings-passwords-stored-by"), storedBy(it.Attributes))
 	if it.Created != 0 {
-		p.detail.Append(panelRow(p.k, t.Get("settings-passwords-created"), time.Unix(intconv.Must[int64](it.Created), 0).UTC().Format(itemTimeLayout)), false)
+		text(t.Get("settings-passwords-created"), time.Unix(intconv.Must[int64](it.Created), 0).UTC().Format(itemTimeLayout))
 	}
 	if it.Modified != 0 {
-		p.detail.Append(panelRow(p.k, t.Get("settings-passwords-modified"), time.Unix(intconv.Must[int64](it.Modified), 0).UTC().Format(itemTimeLayout)), false)
+		text(t.Get("settings-passwords-modified"), time.Unix(intconv.Must[int64](it.Modified), 0).UTC().Format(itemTimeLayout))
 	}
 	p.secretLbl = p.k.label(hiddenText, css.Monospace)
-	reveal := p.k.button(p.k.label(t.Get("settings-passwords-reveal")), func() { p.reveal(it.Path, false) }, css.Small)
-	hide := p.k.button(p.k.label(t.Get("settings-passwords-hide")), p.hideSecret, css.Small)
-	cp := p.k.button(p.k.label(t.Get("settings-passwords-copy")), func() { p.reveal(it.Path, true) }, css.Small)
-	p.detail.Append(panelRow(p.k, t.Get("settings-passwords-secret"), "", p.secretLbl, reveal, hide, cp), false)
+	var reveal *widget.Button
+	reveal, p.revealFace = p.k.contentButton("ld-eye-symbolic", t.Get("settings-passwords-reveal"), func() {
+		if p.revealed != nil {
+			p.hideSecret()
+			return
+		}
+		p.reveal(it.Path, false)
+	}, css.Secondary)
+	cp, _ := p.k.contentButton("ld-copy-symbolic", t.Get("settings-passwords-copy"), func() { p.reveal(it.Path, true) }, css.Secondary)
+	field(t.Get("settings-passwords-secret"), p.secretLbl, reveal, cp)
 	var del *widget.Button
-	delLbl := p.k.label(t.Get("settings-passwords-delete"))
-	del = p.k.button(delLbl, func() {
+	var delFace *widget.ButtonContent
+	del, delFace = p.k.contentButton("ld-trash-2-symbolic", t.Get("settings-passwords-delete"), func() {
 		if !del.HasClass(css.DestructiveAction) {
 			del.AddClass(css.DestructiveAction)
-			delLbl.SetText(t.Get("settings-passwords-delete-confirm"))
+			delFace.SetLabel(t.Get("settings-passwords-delete-confirm"))
 			return
 		}
 		path := it.Path
 		p.act(func(ctx context.Context) error { return p.c.DeleteItem(ctx, path) })
-		p.hideSecret()
-		p.detail.SetVisible(false)
-	}, css.Small)
+		p.expanded = ""
+		p.showItems()
+	}, css.Secondary)
+	del.SetHAlign(widget.AlignEnd)
 	p.detail.Append(del, false)
 }
 
@@ -428,6 +507,8 @@ func (p *passwordsPanel) reveal(item dbus.ObjectPath, copyIt bool) {
 		p.hideSecret()
 		p.revealed = r.secret
 		p.secretLbl.SetText(string(r.secret))
+		p.revealFace.SetIconName("ld-eye-off-symbolic")
+		p.revealFace.SetLabel(locale.T().Get("settings-passwords-hide"))
 	})
 }
 
@@ -436,6 +517,8 @@ func (p *passwordsPanel) hideSecret() {
 	p.revealed = nil
 	if p.secretLbl != nil {
 		p.secretLbl.SetText(hiddenText)
+		p.revealFace.SetIconName("ld-eye-symbolic")
+		p.revealFace.SetLabel(locale.T().Get("settings-passwords-reveal"))
 	}
 }
 

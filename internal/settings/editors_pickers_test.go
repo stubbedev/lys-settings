@@ -226,7 +226,7 @@ func clickIcon(t *testing.T, p *iconPicker, name string) {
 	clickAt(p, cells[i].rect)
 }
 
-// The picker is as wide as its trigger, so it hangs flush beneath it;
+// The picker holds a full line of icons beneath its icon-only trigger;
 // the theme's padding insets its search row and grid on every side,
 // the entry and the clear button share one row the theme's spacing
 // apart, and the icons lie in lines of the full column count, flush
@@ -237,11 +237,11 @@ func TestIconPickerLaysOutUnderItsTrigger(t *testing.T) {
 	_, c, _ := openIconPicker(t, "")
 	p, th := c.picker, widget.Current()
 	box, trigger := p.contents.Bounds(), c.btn.Bounds()
-	if trigger.W != iconPickerWidth() {
-		t.Errorf("the trigger is %dpx wide, want the picker's %dpx", trigger.W, iconPickerWidth())
+	if trigger.W >= iconPickerWidth()/2 {
+		t.Errorf("the trigger is %dpx wide, want only its icon's width", trigger.W)
 	}
-	if box.W != trigger.W {
-		t.Errorf("the picker's contents are %dpx wide under its %dpx trigger", box.W, trigger.W)
+	if box.W != iconPickerWidth() {
+		t.Errorf("the picker's contents are %dpx wide, want a full line of icons in %dpx", box.W, iconPickerWidth())
 	}
 	if root := p.root.Bounds(); box.X-root.X != root.X+root.W-(box.X+box.W) {
 		t.Errorf("the popover %v frames its contents %v unevenly", root, box)
@@ -294,7 +294,7 @@ func TestIconPickerLaysOutUnderItsTrigger(t *testing.T) {
 }
 
 // More icons than the grid shows at once scroll inside its height: the
-// picker stays as wide as its trigger and the grid as tall as its rows,
+// picker keeps its full line of icons and the grid is as tall as its rows,
 // showing exactly its columns by rows of icons, the next ones a scroll
 // away.
 func TestIconPickerScrollsAFullGrid(t *testing.T) {
@@ -302,8 +302,8 @@ func TestIconPickerScrollsAFullGrid(t *testing.T) {
 	pickerIcons(t, icons...)
 	_, c, _ := openIconPicker(t, "")
 	p := c.picker
-	if got := p.contents.Bounds().W; got != c.btn.Bounds().W {
-		t.Errorf("a full picker is %dpx wide under its %dpx trigger", got, c.btn.Bounds().W)
+	if got := p.contents.Bounds().W; got != iconPickerWidth() {
+		t.Errorf("a full picker is %dpx wide, want %dpx", got, iconPickerWidth())
 	}
 	if got, want := p.grid.Bounds().H, iconGridExtent(iconPickerRows); got != want {
 		t.Errorf("the grid shows %dpx, want %d rows' %dpx", got, iconPickerRows, want)
@@ -464,8 +464,8 @@ func TestIconPickerClickPicksTheIcon(t *testing.T) {
 		}
 	}
 	clickIcon(t, c.picker, icons[iconPickerColumns+1])
-	if want := icons[iconPickerColumns+1]; k.store.value(iconPickerPath) != want || f.closed != 1 || c.label.Text() != want {
-		t.Errorf("the click wrote %v, shows %q (closed %d), want %s", k.store.value(iconPickerPath), c.label.Text(), f.closed, want)
+	if want := icons[iconPickerColumns+1]; k.store.value(iconPickerPath) != want || f.closed != 1 || c.btn.TooltipText() != want {
+		t.Errorf("the click wrote %v, shows %q (closed %d), want %s", k.store.value(iconPickerPath), c.btn.TooltipText(), f.closed, want)
 	}
 
 	k, c, f = openIconPicker(t, icons[0])

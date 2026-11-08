@@ -69,7 +69,7 @@ func newListEditor(k *kit, s slot, spec listSpec) *listEditor {
 	c.Append(c.rows, false)
 	// A new row writes only when it changes the stored value: a blank
 	// list item does, a map's keyless pair encodes away and does not.
-	c.add = listButton(k, "ld-plus-symbolic", spec.addKey, "list-control-add", func() {
+	c.add = addButton(k, spec.addKey, func() {
 		if spec.pick != nil {
 			c.pickNew()
 			return
@@ -85,9 +85,9 @@ func newListEditor(k *kit, s slot, spec listSpec) *listEditor {
 	return c
 }
 
-// listButton is list_controls' add/remove button.
-func listButton(k *kit, icon, tooltipKey, class string, onClick func()) *widget.Button {
-	return k.iconButton(icon, tooltipKey, onClick, "list-control-button", class, css.Outline)
+// addButton is a list's outlined + button, tooltipKey naming what it adds.
+func addButton(k *kit, tooltipKey string, onClick func()) *widget.Button {
+	return k.iconButton("ld-plus-symbolic", tooltipKey, onClick, "list-control-button", "list-control-add", css.Outline)
 }
 
 func (c *listEditor) stored() []any {

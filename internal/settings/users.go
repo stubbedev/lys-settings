@@ -277,21 +277,22 @@ type usersPanel struct {
 
 func usersFooter(k *kit) widget.Widget {
 	t := locale.T()
-	p := &usersPanel{Box: gapBox(widget.Column), k: k, changer: defaultPasswordChanger}
+	p := &usersPanel{Box: sectionStack(), k: k, changer: defaultPasswordChanger}
 	p.problem = wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	p.problem.SetVisible(false)
 	p.Append(p.problem, false)
 	p.avatar = gapBox(widget.Column)
-	p.Append(loginSection(k, "settings-section-users-avatar", p.avatar), false)
+	p.avatar.SetElement("item")
+	p.Append(newSection(k, "settings-section-users-avatar", p.avatar), false)
 	p.realName = k.entry()
 	p.realName.SetAccessibleName(t.Get("settings-users-name"))
 	p.realName.SetEnabled(false)
 	p.realName.OnActivate = func(text string) { p.callUser("SetRealName", strings.TrimSpace(text)) }
-	change := k.button(k.label(t.Get("settings-users-password-change")), p.openPasswordDialog, css.Small)
+	change := k.button(k.label(t.Get("settings-users-password-change")), p.openPasswordDialog, css.Secondary)
 	account := widget.NewItemGroup()
 	account.Append(panelRow(k, t.Get("settings-users-name"), t.Attr("settings-users-name", "description"), p.realName))
 	account.Append(panelRow(k, t.Get("settings-users-password"), t.Attr("settings-users-password", "description"), change))
-	p.Append(loginSection(k, "settings-section-users-account", account), false)
+	p.Append(newSection(k, "settings-section-users-account", account), false)
 	p.admin = gapBox(widget.Column)
 	p.admin.SetVisible(false)
 	p.Append(p.admin, false)
@@ -387,7 +388,8 @@ func (p *usersPanel) callUser(method string, args ...any) {
 
 func (p *usersPanel) showAvatars() {
 	t := locale.T()
-	grid := widget.NewBox(widget.Row, widget.Current().Spacing, 0)
+	grid := widget.NewFlowBox(widget.Current().Spacing, widget.Current().Spacing)
+	grid.SetSelectionMode(widget.SelectionNone)
 	entries, err := stockAvatars.ReadDir("avatars")
 	if err != nil {
 		p.fail(err)
@@ -404,18 +406,20 @@ func (p *usersPanel) showAvatars() {
 			p.fail(fmt.Errorf("decode the stock avatar %s: %w", e.Name(), err))
 			return
 		}
-		thumb := widget.NewImage(img)
-		thumb.SetSizeRequest(avatarThumb, avatarThumb)
+		name := strings.TrimSuffix(e.Name(), ".png")
+		thumb := widget.NewAvatar(p.k.face, avatarThumb, name)
+		thumb.SetImage(img)
 		b := p.k.button(thumb, func() { p.useAvatar(img, avatarCrop{zoom: 1}) }, css.Flat, "avatar-choice")
-		b.SetAccessibleName(t.Get("settings-users-avatar-stock", i18n.Str("name", strings.TrimSuffix(e.Name(), ".png"))))
-		grid.Append(b, false)
+		b.SetAccessibleName(t.Get("settings-users-avatar-stock", i18n.Str("name", name)))
+		grid.Append(b)
 	}
+	grid.SetMaxChildrenPerLine(len(entries))
 	p.avatar.Append(grid, false)
-	choose := p.k.button(p.k.label(t.Get("settings-users-avatar-file")), func() {
+	choose, _ := p.k.contentButton("ld-image-symbolic", t.Get("settings-users-avatar-file"), func() {
 		if p.k.pickers != nil {
 			p.k.pickers.openFile(p.cropFile)
 		}
-	}, css.Small)
+	}, css.Secondary)
 	choose.SetHAlign(widget.AlignStart)
 	p.avatar.Append(choose, false)
 }
@@ -525,13 +529,13 @@ func (p *usersPanel) showAdmin(l otherUsersListing) {
 			var path dbus.ObjectPath
 			return manager.storeInteractive(ctx, "CreateUser", &path, login, real, accountStandard)
 		})
-	}, css.Small)
+	}, css.Secondary)
 	adding := gapBox(widget.Row)
 	adding.Append(name, true)
 	adding.Append(full, true)
 	adding.Append(add, false)
 	body.Append(adding, false)
-	p.admin.Append(loginSection(p.k, "settings-section-users-others", body), false)
+	p.admin.Append(newSection(p.k, "settings-section-users-others", body), false)
 }
 
 func (p *usersPanel) adminCall(fn func(context.Context) error) {
@@ -600,7 +604,7 @@ func (p *usersPanel) openPasswordDialog() {
 	cancel := p.k.button(p.k.label(t.Get("settings-users-password-cancel")), func() {
 		clear()
 		p.Remove(box)
-	}, css.Small)
+	}, css.Secondary)
 	buttons := gapBox(widget.Row)
 	buttons.Append(cancel, false)
 	buttons.Append(apply, false)

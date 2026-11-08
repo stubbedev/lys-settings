@@ -99,13 +99,13 @@ type confirmBox struct {
 
 func displaysLead(k *kit) widget.Widget {
 	t := locale.T()
-	p := &displaysPanel{Box: gapBox(widget.Column), k: k}
+	p := &displaysPanel{Box: sectionStack(), k: k}
 	p.status = wrapped(k.label("", "setting-description", css.Caption))
 	p.status.SetVisible(false)
 	p.canvas = newDisplaysCanvas(p)
 	p.canvas.SetAccessibleName(t.Get("settings-displays-arrangement"))
 	p.none = k.label(t.Get("settings-displays-none"), css.DimLabel)
-	p.identify = k.button(k.label(t.Get("settings-displays-identify")), func() { p.identifyOutputs(p.enabledNames()) }, css.Small)
+	p.identify = k.button(k.label(t.Get("settings-displays-identify")), func() { p.identifyOutputs(p.enabledNames()) }, css.Secondary)
 	p.apply = k.button(k.label(t.Get("settings-displays-apply")), p.applyLayout, css.Small, css.SuggestedAction)
 	p.apply.SetEnabled(false)
 	actions := gapBox(widget.Row)
@@ -117,10 +117,10 @@ func displaysLead(k *kit) widget.Widget {
 	arrangement.Append(p.canvas, false)
 	arrangement.Append(actions, false)
 	arrangement.Append(p.status, false)
-	p.Append(loginSection(k, "settings-section-displays-arrangement", arrangement), false)
+	p.Append(newSection(k, "settings-section-displays-arrangement", arrangement), false)
 	p.controls = gapBox(widget.Column)
 	p.buildControls()
-	p.Append(loginSection(k, "settings-section-displays-output", p.controls), false)
+	p.Append(newSection(k, "settings-section-displays-output", p.controls), false)
 	p.connect()
 	return p
 }
@@ -562,12 +562,18 @@ func (p *displaysPanel) showExtraRows() {
 	h := p.heads[p.selected]
 	rule := func() slot { return outputRuleSlot(w, h) }
 	for _, f := range wmItemFields(w, []string{outputsPath, wmconfig.Each}, nil, outputsPath) {
-		if slices.ContainsFunc(arrangedKeys, func(key string) bool { return f.label == wmKey(outputsPath+"."+key) }) {
+		if arranged(f) {
 			continue
 		}
 		ctl := f.item(p.k, func(key string) slot { return nestedSlot(rule(), []string{key}) })
 		p.extra.Append(panelRow(p.k, t.Get(f.label), t.Attr(f.label, "description"), ctl))
 	}
+}
+
+// arranged reports whether f is a key the arrangement above edits, which
+// the selected display's extra rows leave out.
+func arranged(f cardField) bool {
+	return slices.ContainsFunc(arrangedKeys, func(key string) bool { return f.label == wmKey(outputsPath+"."+key) })
 }
 
 func outputRuleSlot(w *wmBackend, h displays.Head) slot {

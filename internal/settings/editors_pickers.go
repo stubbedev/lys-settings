@@ -347,8 +347,8 @@ func iconCellGap() int { return widget.Current().Spacing / 2 }
 // iconGridExtent is the length n cells take along an axis.
 func iconGridExtent(n int) int { return n*iconCellPx() + (n-1)*iconCellGap() }
 
-// iconPickerWidth is the trigger's width, and so the popover's: a full
-// line of the grid inside the popover's padding.
+// iconPickerWidth is the popover's width: a full line of icons inside
+// the theme's padding.
 func iconPickerWidth() int { return iconGridExtent(iconPickerColumns) + 2*widget.Current().Padding }
 
 // iconNames lists the icons the picker offers: every one the icon
@@ -363,16 +363,14 @@ var iconNames = func() []string {
 	return names
 }
 
-// iconEditor is icon_picker_widget: a trigger showing the icon and its
-// name that opens the searchable grid of the icons beneath it, as wide
-// as the trigger.
+// iconEditor is a trigger showing the icon alone, its name in the
+// tooltip, that opens the searchable grid of the icons beneath it.
 type iconEditor struct {
 	*widget.Box
 	k      *kit
 	slot   slot
 	btn    *widget.Button
 	icon   *widget.Icon
-	label  *widget.Label
 	picker *iconPicker
 }
 
@@ -381,31 +379,22 @@ func newIconEditor(k *kit, s slot) *iconEditor {
 	c.SetElement("menubutton")
 	c.AddClass("icon-picker-trigger")
 	c.icon = k.icon("ld-image-symbolic")
-	c.label = k.label("")
-	c.label.SetEllipsize(widget.EllipsizeEnd)
-	face := gapBox(widget.Row)
-	face.AppendAligned(c.icon, false, widget.AlignCenter)
-	face.AppendAligned(c.label, true, widget.AlignCenter)
-	c.btn = k.button(face, c.open, css.Outline)
-	w := iconPickerWidth()
-	c.btn.SetSizeRequest(w, 0)
-	c.btn.SetMaximumSize(w, 0)
+	c.btn = k.button(c.icon, c.open, css.Outline, css.Icon)
 	c.Append(c.btn, false)
 	c.refresh()
 	return c
 }
 
-// refresh is update_display: the icon and its name, or the image
-// placeholder and "None".
+// refresh shows the icon, or the image placeholder, and names it, or
+// "None", in the tooltip.
 func (c *iconEditor) refresh() {
-	name := c.slot.text()
+	name, shown := c.slot.text(), c.slot.text()
 	if name == "" {
-		c.icon.SetThemeName("ld-image-symbolic")
-		c.label.SetText(locale.T().Get("settings-icon-none"))
-		return
+		name, shown = locale.T().Get("settings-icon-none"), "ld-image-symbolic"
 	}
-	c.icon.SetThemeName(name)
-	c.label.SetText(name)
+	c.icon.SetThemeName(shown)
+	c.btn.SetTooltip(name)
+	c.btn.SetAccessibleName(name)
 }
 
 func (c *iconEditor) open() {
@@ -416,7 +405,7 @@ func (c *iconEditor) open() {
 		_ = c.slot.set(name)
 		c.refresh()
 	}, func(pick func(string)) (*widget.Box, widget.Widget) {
-		c.picker = newIconPicker(c.k, iconNames(), c.slot.text(), c.btn.Bounds().W, pick)
+		c.picker = newIconPicker(c.k, iconNames(), c.slot.text(), iconPickerWidth(), pick)
 		return c.picker.root, c.picker.search
 	})
 }
@@ -453,10 +442,10 @@ func newIconPicker(k *kit, names []string, current string, width int, pick func(
 		}
 	}
 	p.clear = k.iconButton("ld-x-circle-symbolic", "settings-icon-clear", func() { p.pick("") }, "icon-picker-clear", css.Ghost)
-	searchRow := gapBox(widget.Row)
-	searchRow.AppendAligned(p.search, true, widget.AlignCenter)
-	searchRow.AppendAligned(p.clear, false, widget.AlignCenter)
-	contents.Append(searchRow, false)
+	bar := gapBox(widget.Row)
+	bar.AppendAligned(p.search, true, widget.AlignCenter)
+	bar.AppendAligned(p.clear, false, widget.AlignCenter)
+	contents.Append(bar, false)
 	p.grid = newIconGrid(iconCells{p})
 	p.grid.OnActivate = func(i int) { p.pick(p.shown[i]) }
 	contents.Append(p.grid, true)

@@ -102,7 +102,7 @@ type settingsPage struct {
 func buildPage(k *kit, spec pageSpec) *settingsPage {
 	t := locale.T()
 	th := widget.Current()
-	content := widget.NewBox(widget.Column, 3*th.Spacing, 3*th.Padding)
+	content := widget.NewBox(widget.Column, sectionGap(), 3*th.Padding)
 	content.AddClass("settings-page")
 	header := widget.NewBox(widget.Column, th.Spacing/2, 0)
 	header.AddClass("settings-page-header")
@@ -128,19 +128,8 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 		content.Append(p.own(spec.lead(k)), false)
 	}
 	for _, s := range spec.sections {
-		section := gapBox(widget.Column)
-		section.AddClass("settings-section")
-		title := k.label(t.Get(s.title), "settings-section-title", css.CaptionHeading, css.DimLabel)
-		section.Append(title, false)
-		if desc := description(s.title); desc != "" {
-			note := k.label(desc, "settings-section-description", css.Caption, css.DimLabel)
-			note.SetWrap(true)
-			section.Append(note, false)
-		}
 		rows := widget.NewItemGroup()
-		group := widget.NewBox(widget.Column, 0, 0)
-		group.AddClass(css.Card, "settings-group")
-		group.Append(rows, false)
+		section := newSection(k, s.title, rows)
 		for _, rs := range s.rows {
 			rowBackend := be
 			if rs.wm && !spec.wm {
@@ -155,7 +144,6 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 			rows.Append(row)
 			p.rows = append(p.rows, row)
 		}
-		section.Append(group, false)
 		content.Append(section, false)
 	}
 	if spec.footer != nil {
@@ -164,6 +152,29 @@ func buildPage(k *kit, spec pageSpec) *settingsPage {
 	p.Scroll = widget.NewScroll(k.pageColumn(content))
 	p.VerticalOnly, p.ShowBars, p.FillY = true, true, true
 	return p
+}
+
+// sectionGap is how far apart a page sets its sections.
+func sectionGap() int { return 3 * widget.Current().Spacing }
+
+// sectionStack is a column of sections a panel builds itself, as far apart
+// as a page's own.
+func sectionStack() *widget.Box { return widget.NewBox(widget.Column, sectionGap(), 0) }
+
+// newSection is a page section: its title, its description when it has
+// one, and body on a card.
+func newSection(k *kit, title string, body widget.Widget) *widget.Box {
+	section := gapBox(widget.Column)
+	section.AddClass("settings-section")
+	section.Append(k.label(locale.T().Get(title), "settings-section-title", css.CaptionHeading, css.DimLabel), false)
+	if desc := description(title); desc != "" {
+		section.Append(wrapped(k.label(desc, "settings-section-description", css.Caption, css.DimLabel)), false)
+	}
+	group := widget.NewBox(widget.Column, 0, 0)
+	group.AddClass(css.Card, "settings-group")
+	group.Append(body, false)
+	section.Append(group, false)
+	return section
 }
 
 // refresh re-reads every row.

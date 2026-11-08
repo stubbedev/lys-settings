@@ -320,31 +320,22 @@ type loginItems struct {
 
 func loginItemsFooter(k *kit) widget.Widget {
 	l := &loginItems{k: k, dirs: systemHost.autostartDirs(), desktops: desktopentry.CurrentDesktops()}
-	content := gapBox(widget.Column)
+	content := sectionStack()
 	l.problem = wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	l.problem.SetVisible(false)
 	content.Append(l.problem, false)
-	l.apps = gapBox(widget.Column)
-	content.Append(loginSection(k, "settings-section-login-apps", l.apps), false)
+	l.apps = widget.NewBox(widget.Column, 0, 0)
+	apps := newSection(k, "settings-section-login-apps", l.apps)
+	var add *widget.Button
+	add = addButton(k, "settings-login-apps-add", func() { l.pickApp(add) })
+	add.SetAccessibleName(locale.T().Get("settings-login-apps-add"))
+	apps.AppendAligned(add, false, widget.AlignStart)
+	content.Append(apps, false)
 	l.services = gapBox(widget.Column)
-	content.Append(loginSection(k, "settings-section-login-services", l.services), false)
+	content.Append(newSection(k, "settings-section-login-services", l.services), false)
 	l.loadApps()
 	l.loadServices()
 	return content
-}
-
-func loginSection(k *kit, title string, body widget.Widget) widget.Widget {
-	section := gapBox(widget.Column)
-	section.AddClass("settings-section")
-	section.Append(k.label(locale.T().Get(title), "settings-section-title", css.CaptionHeading, css.DimLabel), false)
-	if desc := description(title); desc != "" {
-		section.Append(wrapped(k.label(desc, "settings-section-description", css.Caption, css.DimLabel)), false)
-	}
-	group := widget.NewBox(widget.Column, 0, 0)
-	group.AddClass(css.Card, "settings-group")
-	group.Append(body, false)
-	section.Append(group, false)
-	return section
 }
 
 func (l *loginItems) fail(err error) {
@@ -378,28 +369,17 @@ func (l *loginItems) showApps(r autostartListing) {
 		rows.Append(l.appRow(e))
 	}
 	if len(r.entries) == 0 {
-		rows.Append(l.k.label(t.Get("settings-login-apps-none"), css.DimLabel))
+		rows.Append(l.k.emptyRow("ld-power-symbolic", t.Get("settings-login-apps-none")))
 	}
 	l.apps.Append(rows, false)
-	var add *widget.Button
-	add = l.k.button(l.k.label(t.Get("settings-login-apps-add")), func() { l.pickApp(add) }, css.Small)
-	add.SetHAlign(widget.AlignStart)
-	l.apps.Append(add, false)
 }
 
-func (l *loginItems) itemRow(icon, name, detail string) *widget.Box {
-	row := gapBox(widget.Row)
-	row.SetElement("item")
-	row.AddClass(css.Small, "setting-row", "login-item")
+func (l *loginItems) itemRow(icon, name, detail string) *widget.Item {
+	row := widget.NewItem(l.k.face, name, detail)
+	row.AddClass(css.Small, "login-item")
 	if icon != "" {
-		row.AppendAligned(l.k.icon(icon, "login-item-icon"), false, widget.AlignCenter)
+		row.SetMedia(l.k.icon(icon, "login-item-icon"), false)
 	}
-	text := widget.NewBox(widget.Column, widget.Current().Spacing/4, 0)
-	text.Append(l.k.label(name, "setting-label"), false)
-	if detail != "" {
-		text.Append(wrapped(l.k.label(detail, "setting-description", css.Caption, css.DimLabel)), false)
-	}
-	row.AppendAligned(text, true, widget.AlignCenter)
 	return row
 }
 
@@ -411,14 +391,14 @@ func (l *loginItems) appRow(e autostartEntry) widget.Widget {
 	}
 	row := l.itemRow(e.icon, e.name, detail)
 	if e.removable() {
-		row.AppendAligned(l.k.iconButton("ld-trash-2-symbolic", "settings-login-apps-remove", func() {
+		row.AddAction(l.k.iconButton("ld-trash-2-symbolic", "settings-login-apps-remove", func() {
 			l.act(func() error { return removeAutostart(e) })
-		}, css.Ghost), false, widget.AlignCenter)
+		}, css.Ghost))
 	}
 	sw := widget.NewSwitch(e.enabled)
 	sw.SetAccessibleName(e.name)
 	sw.OnChanged = func(on bool) { l.act(func() error { return setAutostart(l.dirs, e, on) }) }
-	row.AppendAligned(sw, false, widget.AlignCenter)
+	row.AddAction(sw)
 	return row
 }
 
@@ -487,7 +467,7 @@ func (l *loginItems) serviceRow(u userUnit) widget.Widget {
 			l.loadServices()
 		})
 	}
-	row.AppendAligned(sw, false, widget.AlignCenter)
+	row.AddAction(sw)
 	return row
 }
 

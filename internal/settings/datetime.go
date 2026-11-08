@@ -286,9 +286,9 @@ func dateTimeFooter(k *kit) widget.Widget {
 		refresh()
 		p.body.Append(rows, false)
 	})
-	content := gapBox(widget.Column)
-	content.Append(loginSection(k, "settings-section-date-system", p), false)
-	content.Append(loginSection(k, "settings-section-date-clock", clock), false)
+	content := sectionStack()
+	content.Append(newSection(k, "settings-section-date-system", p), false)
+	content.Append(newSection(k, "settings-section-date-clock", clock), false)
 	return &closingBox{content, p.close}
 }
 
@@ -381,10 +381,16 @@ func writeLocaleConf(path, key, value string) error {
 func regionFooter(k *kit) widget.Widget {
 	t := locale.T()
 	conf := localeConfPath(systemHost)
-	formats := gapBox(widget.Column)
 	preview := wrapped(k.label("", "setting-description", css.Caption, css.DimLabel))
 	formatsProblem := wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	formatsProblem.SetVisible(false)
+	head := widget.NewBox(widget.Column, widget.Current().Spacing/2, 0)
+	head.SetElement("item")
+	head.Append(preview, false)
+	head.Append(formatsProblem, false)
+	formats := widget.NewBox(widget.Column, 0, 0)
+	formats.Append(head, false)
+	formats.Append(widget.NewSeparator(widget.Horizontal), false)
 	p := newSysPanel(k, localeName, localePath)
 	lang := func() string {
 		for _, kv := range p.props.strs("Locale") {
@@ -419,7 +425,7 @@ func regionFooter(k *kit) widget.Widget {
 		return localesListing{names, err}
 	}, func(l localesListing) {
 		if l.err != nil {
-			formats.Append(wrapped(k.label(l.err.Error(), css.Error, css.Caption)), false)
+			head.Append(wrapped(k.label(l.err.Error(), css.Error, css.Caption)), false)
 			return
 		}
 		values, _, err := readLocaleConf(conf)
@@ -449,8 +455,6 @@ func regionFooter(k *kit) widget.Widget {
 		formats.Append(rows, false)
 		showPreview()
 	})
-	formats.Append(formatsProblem, false)
-	formats.Append(preview, false)
 	p.open(func(context.Context, sysService) (any, error) { return listLocales() }, func(extra any) {
 		names, _ := extra.([]string)
 		language := widget.NewDropdown(k.face, k.textPx(), names, max(slices.Index(names, lang()), 0))
@@ -492,9 +496,9 @@ func regionFooter(k *kit) widget.Widget {
 		refresh()
 		p.body.Append(rows, false)
 	})
-	content := gapBox(widget.Column)
-	content.Append(loginSection(k, "settings-section-region-formats", formats), false)
-	content.Append(loginSection(k, "settings-section-region-system", p), false)
+	content := sectionStack()
+	content.Append(newSection(k, "settings-section-region-formats", formats), false)
+	content.Append(newSection(k, "settings-section-region-system", p), false)
 	return &closingBox{content, p.close}
 }
 

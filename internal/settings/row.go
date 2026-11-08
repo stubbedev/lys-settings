@@ -144,6 +144,30 @@ func (k *kit) iconButton(icon, tooltipKey string, onClick func(), classes ...str
 	return b
 }
 
+// contentButton is a button wearing lys-ui's icon-and-label content,
+// which it returns too so both can change in place.
+func (k *kit) contentButton(icon, text string, onClick func(), classes ...string) (*widget.Button, *widget.ButtonContent) {
+	content := widget.NewButtonContent(k.face, k.textPx(), icon, text)
+	return k.button(content, onClick, classes...), content
+}
+
+// insetRow holds w as a row of its card, inset like the rows around it:
+// a list's search field, a note.
+func insetRow(w widget.Widget) *widget.Box {
+	row := widget.NewBox(widget.Row, 0, 0)
+	row.SetElement("item")
+	row.Append(w, true)
+	return row
+}
+
+// emptyRow is the row of a list holding nothing: icon on lys-ui's muted
+// tile beside text.
+func (k *kit) emptyRow(icon, text string) *widget.Item {
+	it := widget.NewItem(k.face, text, "")
+	it.SetMedia(k.icon(icon), false)
+	return it
+}
+
 // button wraps child in a plain button carrying classes.
 func (k *kit) button(child widget.Widget, onClick func(), classes ...string) *widget.Button {
 	b := widget.NewButton(child, 0, 0)

@@ -84,8 +84,14 @@ func TestEveryDisplayFieldHasItsLabelAgainstTheInstalledLysWM(t *testing.T) {
 		t.Fatal(err)
 	}
 	k.wm = w
-	for _, label := range missingLabels(k, wmItemFields(w, []string{outputsPath, wmconfig.Each}, nil, outputsPath)) {
+	fields := wmItemFields(w, []string{outputsPath, wmconfig.Each}, nil, outputsPath)
+	for _, label := range missingLabels(k, fields) {
 		t.Errorf("no message %s", label)
+	}
+	for _, f := range fields {
+		if !arranged(f) && !locale.T().HasAttr(f.label, "description") {
+			t.Errorf("%s has no description for its row", f.label)
+		}
 	}
 }
 

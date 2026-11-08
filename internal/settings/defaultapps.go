@@ -105,20 +105,21 @@ var setDefaults = desktopentry.SetDefaults
 
 func defaultAppsFooter(k *kit) widget.Widget {
 	d := &defaultApps{k: k}
-	content := gapBox(widget.Column)
+	content := sectionStack()
 	d.problem = wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	d.problem.SetVisible(false)
 	content.Append(d.problem, false)
 	d.cats = gapBox(widget.Column)
-	content.Append(loginSection(k, "settings-section-default-categories", d.cats), false)
-	typesBody := gapBox(widget.Column)
+	content.Append(newSection(k, "settings-section-default-categories", d.cats), false)
+	typesBody := widget.NewBox(widget.Column, 0, 0)
 	d.filter = widget.NewSearchEntry(k.face, k.textPx(), locale.T().Get("settings-default-types-filter"))
 	d.filter.SetDelay(0)
 	d.filter.OnSearchChanged = func(string) { d.showTypes() }
 	d.types = gapBox(widget.Column)
-	typesBody.Append(d.filter, false)
+	typesBody.Append(insetRow(d.filter), false)
+	typesBody.Append(widget.NewSeparator(widget.Horizontal), false)
 	typesBody.Append(d.types, false)
-	content.Append(loginSection(k, "settings-section-default-types", typesBody), false)
+	content.Append(newSection(k, "settings-section-default-types", typesBody), false)
 	dirs, lists := desktopentry.ApplicationDirs(), desktopentry.MimeAppsLists()
 	async(k, func() appIndex { return indexApps(dirs, lists) }, d.show)
 	return content
@@ -147,7 +148,7 @@ func (d *defaultApps) showTypes() {
 			continue
 		}
 		if shown == fileTypesShown {
-			d.types.Append(d.k.label(locale.T().Get("settings-default-types-more"), "setting-description", css.Caption, css.DimLabel), false)
+			rows.Append(widget.NewItem(d.k.face, "", locale.T().Get("settings-default-types-more")))
 			break
 		}
 		rows.Append(d.chooser(mimeType, []string{mimeType}))

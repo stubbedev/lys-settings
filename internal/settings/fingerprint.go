@@ -158,7 +158,7 @@ func (p *usersPanel) loadFingerprint() {
 		}
 		s := newFingerprintSection(p.k, o.fp, o.stages, o.enrolled, p.fail)
 		p.fingerprint = s
-		p.Append(loginSection(p.k, "settings-section-users-fingerprint", s), false)
+		p.Append(newSection(p.k, "settings-section-users-fingerprint", s), false)
 	})
 }
 
@@ -177,7 +177,7 @@ func newFingerprintSection(k *kit, fp *fprint, stages int, enrolled []string, fa
 	s.ring.SetAccessibleName(t.Get("settings-fingerprint-progress"))
 	s.ring.SetVisible(false)
 	s.hint = wrapped(k.label("", "setting-description", css.Caption, css.DimLabel))
-	s.cancel = k.button(k.label(t.Get("settings-fingerprint-cancel")), func() { s.finish(fail) }, css.Small)
+	s.cancel = k.button(k.label(t.Get("settings-fingerprint-cancel")), func() { s.finish(fail) }, css.Secondary)
 	s.cancel.SetVisible(false)
 	s.Append(s.ring, false)
 	s.Append(s.hint, false)

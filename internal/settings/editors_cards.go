@@ -132,7 +132,7 @@ func newCardList(k *kit, s slot, spec cardSpec) *cardList {
 	if addKey == "" {
 		addKey = "settings-list-add"
 	}
-	add := listButton(k, "ld-plus-symbolic", addKey, "list-control-add", func() {
+	add := addButton(k, addKey, func() {
 		c.local = append(c.local, spec.blank())
 		c.rebuild()
 		c.commit()
@@ -313,6 +313,7 @@ func (c *cardList) appendCard(i int) {
 		header.AppendAligned(cd.identity, true, widget.AlignCenter)
 	} else {
 		cd.title = c.k.label("", "card-form-title", css.Heading)
+		cd.title.SetEllipsize(widget.EllipsizeEnd)
 		header.AppendAligned(cd.title, true, widget.AlignCenter)
 	}
 	remove := c.k.iconButton("ld-trash-2-symbolic", chrome.removeKey, func() {
@@ -611,7 +612,7 @@ func (c *cardList) addClash(cd *card, i int) {
 	cd.clashMsg = c.k.label("", "setting-problem", css.Caption, css.Warning)
 	cd.clashMsg.SetWrap(true)
 	cd.clash.AppendAligned(cd.clashMsg, true, widget.AlignCenter)
-	cd.clash.AppendAligned(c.k.button(c.k.label(locale.T().Get("settings-clash-replace")), func() { c.replace(i) }, css.Small), false, widget.AlignCenter)
+	cd.clash.AppendAligned(c.k.button(c.k.label(locale.T().Get("settings-clash-replace")), func() { c.replace(i) }, css.Secondary), false, widget.AlignCenter)
 	cd.clash.SetVisible(false)
 	cd.root.Append(cd.clash, false)
 }

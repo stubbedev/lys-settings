@@ -16,6 +16,7 @@ import (
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-lib/sockdir"
 	"github.com/stubbedev/lys-shell/config"
+	"github.com/stubbedev/lys-shell/i18n"
 	"github.com/stubbedev/lys-shell/service/recorder"
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-shell/shell/treetest"
@@ -1055,8 +1056,8 @@ func TestIconEditorPicks(t *testing.T) {
 	t.Cleanup(func() { iconNames = prev })
 	path := "modules.clock.icon-name"
 	c := newIconEditor(k, pathSlot(k.store, path))
-	if cur, _ := k.store.value(path).(string); c.label.Text() != cur || c.icon.Name() != cur {
-		t.Fatalf("trigger shows %q/%q, want %q", c.label.Text(), c.icon.Name(), cur)
+	if cur, _ := k.store.value(path).(string); c.btn.TooltipText() != cur || c.icon.Name() != cur {
+		t.Fatalf("trigger shows %q/%q, want %q", c.btn.TooltipText(), c.icon.Name(), cur)
 	}
 	c.btn.ClickAt(widget.Point{})
 	p := c.picker
@@ -1080,8 +1081,8 @@ func TestIconEditorPicks(t *testing.T) {
 	}
 	p.pick("")
 	c.refresh()
-	if c.label.Text() != locale.T().Get("settings-icon-none") || c.icon.Name() != "ld-image-symbolic" {
-		t.Errorf("cleared trigger shows %q/%q", c.label.Text(), c.icon.Name())
+	if c.btn.TooltipText() != locale.T().Get("settings-icon-none") || c.icon.Name() != "ld-image-symbolic" {
+		t.Errorf("cleared trigger shows %q/%q", c.btn.TooltipText(), c.icon.Name())
 	}
 }
 
@@ -1202,8 +1203,8 @@ func TestEnumAndIconListItems(t *testing.T) {
 	if got, _ := k.store.value("modules.battery.level-icons").([]any); got[0] != "ld-a-symbolic" {
 		t.Errorf("icon row wrote %v", got)
 	}
-	if first.label.Text() != "ld-a-symbolic" {
-		t.Errorf("icon row shows %q after the pick", first.label.Text())
+	if first.btn.TooltipText() != "ld-a-symbolic" {
+		t.Errorf("icon row shows %q after the pick", first.btn.TooltipText())
 	}
 }
 
@@ -1624,7 +1625,7 @@ func TestEntriesKeepTheirGtkWidth(t *testing.T) {
 }
 
 // addButton is a list editor's add button.
-func addButton(c *listEditor) *widget.Button { return c.Children()[1].(*widget.Button) }
+func addRowButton(c *listEditor) *widget.Button { return c.Children()[1].(*widget.Button) }
 
 func TestListAddWritesOnlyAChange(t *testing.T) {
 	k := testKit(t, "")
@@ -1632,7 +1633,7 @@ func TestListAddWritesOnlyAChange(t *testing.T) {
 	if m.rows.HasClass("string-list") || !m.rows.HasClass("string-map") {
 		t.Error("the map's rows lack string_map's class")
 	}
-	addButton(m).ClickAt(widget.Point{})
+	addRowButton(m).ClickAt(widget.Point{})
 	if len(m.items) != 1 || k.store.svc.Source("modules.window-title.icon-mappings") != config.SourceDefault {
 		t.Errorf("a blank pair wrote the map (%d rows, source %v)", len(m.items), k.store.svc.Source("modules.window-title.icon-mappings"))
 	}
@@ -1640,7 +1641,7 @@ func TestListAddWritesOnlyAChange(t *testing.T) {
 	if !l.rows.HasClass("string-list") {
 		t.Error("a list lost string-list")
 	}
-	addButton(l).ClickAt(widget.Point{})
+	addRowButton(l).ClickAt(widget.Point{})
 	if got, _ := k.store.value("modules.notifications.blocklist").([]any); len(got) != 1 {
 		t.Errorf("a blank list item stored %v, want it written", got)
 	}
@@ -1665,8 +1666,8 @@ func TestWorkspaceStyleMapNumericKeys(t *testing.T) {
 		t.Fatalf("rows %v, want numeric order", keys)
 	}
 	two := c.items[1].(workspaceStyleItem)
-	if two.icon.label.Text() != "ld-globe-symbolic" || two.label.Text() != "" {
-		t.Errorf("row 2 shows icon %q label %q", two.icon.label.Text(), two.label.Text())
+	if two.icon.btn.TooltipText() != "ld-globe-symbolic" || two.label.Text() != "" {
+		t.Errorf("row 2 shows icon %q label %q", two.icon.btn.TooltipText(), two.label.Text())
 	}
 	// Retyping a key trims it; a key that is no number drops.
 	two.key.SelectAll()
@@ -1846,7 +1847,7 @@ func TestTrayOverrideList(t *testing.T) {
 		t.Errorf("an empty icon was stored: %v", got[0])
 	}
 	// A nameless override is not written, and adding one writes nothing.
-	addButton(c).ClickAt(widget.Point{})
+	addRowButton(c).ClickAt(widget.Point{})
 	c.items[1].(trayOverrideItem).icon.Insert("x")
 	if got, _ := k.store.value(path).([]any); len(got) != 1 {
 		t.Errorf("a nameless override was stored: %v", got)
@@ -2116,11 +2117,11 @@ func TestLayoutEditorModulesAndGroups(t *testing.T) {
 	if g := storedLayouts(k)[0].Left[1].Group; g == nil || g.Name != "sys!" || group.Text() != "sys!" {
 		t.Errorf("group %+v, chip %q", g, group.Text())
 	}
-	click(root, treetest.Button(t, group, "Remove cpu"))
+	click(root, treetest.Button(t, group, "Remove CPU"))
 	if g := storedLayouts(k)[0].Left[1].Group; len(g.Modules) != 1 || g.Modules[0].Module != "ram" {
 		t.Errorf("after removing cpu: %+v", g)
 	}
-	click(root, treetest.Button(t, zoneChips(t, root, c, 0, zoneLeft), "Remove clock"))
+	click(root, treetest.Button(t, zoneChips(t, root, c, 0, zoneLeft), "Remove Clock"))
 	if got := storedLayouts(k)[0].Left; len(got) != 1 || got[0].Group == nil {
 		t.Errorf("left after removing clock: %+v", got)
 	}
@@ -2147,7 +2148,7 @@ func TestLayoutEditorChipsMoveByDrag(t *testing.T) {
 	if got := modules(storedLayouts(k)[0].Right); !slices.Equal(got, []string{"volume", "battery"}) {
 		t.Errorf("right after the reorder: %v", got)
 	}
-	if got := texts(right); !slices.Equal(got, []string{"volume", "battery"}) {
+	if got := texts(right); !slices.Equal(got, []string{"Volume", "Battery"}) {
 		t.Errorf("the zone shows %v after the reorder", got)
 	}
 	left := zoneChips(t, root, c, 0, zoneLeft)
@@ -2164,7 +2165,7 @@ func TestLayoutEditorChipsMoveByDrag(t *testing.T) {
 	if g := storedLayouts(k)[0].Center[0].Group; g == nil || g.Name != "sys!" {
 		t.Errorf("renaming the moved group wrote %+v", g)
 	}
-	click(root, treetest.Button(t, right, "Remove volume"))
+	click(root, treetest.Button(t, right, "Remove Volume"))
 	if got := modules(storedLayouts(k)[0].Right); !slices.Equal(got, []string{"battery"}) {
 		t.Errorf("removing the reordered volume left %v", got)
 	}
@@ -2191,7 +2192,7 @@ func TestLayoutEditorLeavesSnapshotsAlone(t *testing.T) {
 	snap := k.store.svc.Config()
 	left := zoneChips(t, root, c, 0, zoneLeft)
 	treetest.First[*widget.Entry](t, left.ChipAt(1)).Insert("x")
-	click(root, treetest.Button(t, left, "Remove clock"))
+	click(root, treetest.Button(t, left, "Remove Clock"))
 	if l := snap.Bar.Layout[0].Left; l[0].Module != "clock" || l[1].Group.Name != "sys" {
 		t.Errorf("the old snapshot changed: %+v %+v", l[0], l[1].Group)
 	}
@@ -2505,5 +2506,48 @@ func TestTheDockPageEditsEveryDockOption(t *testing.T) {
 	slices.Sort(keys)
 	if !slices.Equal(rows, keys) {
 		t.Fatalf("dock page rows %v, want the dock options %v", rows, keys)
+	}
+}
+
+func TestEveryBarModuleHasAReadableNameInEveryLanguage(t *testing.T) {
+	for _, lang := range []string{"en-US", "fr"} {
+		l, err := i18n.Select(locale.Assets(), []i18n.LangID{i18n.MustLangID(lang)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range config.BuiltinModules {
+			if key := "settings-module-" + string(m); !l.Has(key) {
+				t.Errorf("%s: no %s", lang, key)
+			}
+		}
+		if !l.Has("settings-module-custom") {
+			t.Errorf("%s: no settings-module-custom", lang)
+		}
+	}
+}
+
+func TestALayoutChipAndThePickerNameModulesReadably(t *testing.T) {
+	if got, want := moduleTitle(config.ModuleIdleInhibit), locale.T().Get("settings-module-idle-inhibit"); got != want || got == string(config.ModuleIdleInhibit) {
+		t.Fatalf("idle-inhibit reads %q, want %q", got, want)
+	}
+	if got := moduleTitle(config.BarModule("custom-gpu")); !strings.Contains(got, "gpu") {
+		t.Fatalf("custom-gpu reads %q, want its id in it", got)
+	}
+	_, c := newTestLayout(t)
+	root, _ := hosted(c)
+	if got := texts(zoneChips(t, root, c, 0, zoneRight)); !slices.Equal(got, []string{"Battery", "Volume"}) {
+		t.Fatalf("the right zone shows %q", got)
+	}
+	p := c.pickModule(nil, func(config.BarModule) {})
+	p.filter("idle-inhibit")
+	p.filter("Idle Inhibit")
+	shown := 0
+	for i := range p.all {
+		if p.rows.ChildAt(i).Visible() {
+			shown++
+		}
+	}
+	if shown != 1 {
+		t.Fatalf("searching the readable name shows %d modules, want 1", shown)
 	}
 }

@@ -259,7 +259,7 @@ func newAppShortcutsEditor(k *kit, binds slot) *appShortcutsEditor {
 	e.empty = k.label(locale.T().Get("wm-app-shortcuts-none"), "setting-description", css.Caption, css.DimLabel)
 	e.Append(e.empty, false)
 	e.Append(e.list, false)
-	reload := k.button(k.label(locale.T().Get("wm-app-shortcuts-reload")), e.load, css.Small)
+	reload := k.button(k.label(locale.T().Get("wm-app-shortcuts-reload")), e.load, css.Secondary)
 	reload.SetHAlign(widget.AlignStart)
 	e.Append(reload, false)
 	e.load()

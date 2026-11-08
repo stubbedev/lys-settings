@@ -105,20 +105,21 @@ func startPasswordsWith(t *testing.T, items int, yaml string) *passwordsRig {
 	return &passwordsRig{srv: srv, bus: bus, p: p, l: l, mon: mon}
 }
 
-func (r *passwordsRig) itemButtons() []*widget.Button {
-	var out []*widget.Button
+func (r *passwordsRig) itemRows() []*widget.Item {
+	var out []*widget.Item
 	for _, w := range treetest.WithClass(r.p.list, "password-item") {
-		out = append(out, w.(*widget.Button))
+		row, _ := w.(*widget.Item)
+		out = append(out, row)
 	}
 	return out
 }
 
 func TestALockedCollectionIsListedWithoutAPromptAndARevealPromptsOnce(t *testing.T) {
 	r := startPasswords(t, 1)
-	if len(r.itemButtons()) != 1 || r.srv.Asked() != 0 {
-		t.Fatalf("%d items listed, %d prompts", len(r.itemButtons()), r.srv.Asked())
+	if len(r.itemRows()) != 1 || r.srv.Asked() != 0 {
+		t.Fatalf("%d items listed, %d prompts", len(r.itemRows()), r.srv.Asked())
 	}
-	r.itemButtons()[0].OnClick()
+	r.itemRows()[0].ClickAt(widget.Point{})
 	r.srv.Answer("login-pw")
 	treetest.Button(t, r.p.detail, "Reveal").OnClick()
 	if r.srv.Asked() != 1 || string(r.p.revealed) != "secret-x" || r.p.secretLbl.Text() != "secret-x" {
@@ -135,11 +136,11 @@ func TestDeletingAnItemFollowsItemDeleted(t *testing.T) {
 	r := startPasswords(t, 2)
 	r.srv.Answer("login-pw")
 	treetest.Button(t, r.p, "Unlock…").OnClick()
-	r.itemButtons()[0].OnClick()
+	r.itemRows()[0].ClickAt(widget.Point{})
 	del := treetest.Button(t, r.p.detail, "Delete…")
 	del.OnClick()
 	treetest.Button(t, r.p.detail, "Delete This Item").OnClick()
-	r.l.until("the list following the deletion", func() bool { return len(r.itemButtons()) == 1 })
+	r.l.until("the list following the deletion", func() bool { return len(r.itemRows()) == 1 })
 }
 
 func TestChangePasswordRekeysThroughOnePrompt(t *testing.T) {
@@ -166,12 +167,12 @@ func TestTheItemsLoadWithOneSearchAndOneGetAllAPage(t *testing.T) {
 	if r.mon.count("SearchItems") != 1 || r.mon.count("GetAll") != itemsPerPage+1 {
 		t.Fatalf("SearchItems %d, GetAll %d; want one search and a GetAll for each of the first %d items plus the collection", r.mon.count("SearchItems"), r.mon.count("GetAll"), itemsPerPage)
 	}
-	if len(r.itemButtons()) != itemsPerPage {
-		t.Fatalf("%d rows on the first page", len(r.itemButtons()))
+	if len(r.itemRows()) != itemsPerPage {
+		t.Fatalf("%d rows on the first page", len(r.itemRows()))
 	}
-	treetest.Button(t, r.p.list, "Show More").OnClick()
-	if r.mon.count("SearchItems") != 1 || r.mon.count("GetAll") != itemsPerPage+4 || len(r.itemButtons()) != itemsPerPage+3 {
-		t.Fatalf("after Show More: SearchItems %d, GetAll %d, rows %d", r.mon.count("SearchItems"), r.mon.count("GetAll"), len(r.itemButtons()))
+	treetest.Button(t, r.p, "Show More").OnClick()
+	if r.mon.count("SearchItems") != 1 || r.mon.count("GetAll") != itemsPerPage+4 || len(r.itemRows()) != itemsPerPage+3 {
+		t.Fatalf("after Show More: SearchItems %d, GetAll %d, rows %d", r.mon.count("SearchItems"), r.mon.count("GetAll"), len(r.itemRows()))
 	}
 }
 
@@ -183,7 +184,7 @@ func TestARevealAsksAgainOnceTheCollectionWasOpenTooLongAndACopyIsASecret(t *tes
 	r.p.k.copySecret = func(text string) error { copied = append(copied, text); return nil }
 	r.srv.Answer("login-pw")
 	treetest.Button(t, r.p, "Unlock…").OnClick()
-	r.itemButtons()[0].OnClick()
+	r.itemRows()[0].ClickAt(widget.Point{})
 	asked := r.srv.Asked()
 	treetest.Button(t, r.p.detail, "Copy").OnClick()
 	if r.srv.Asked() != asked || len(copied) != 1 || copied[0] != "secret-x" {
@@ -194,5 +195,23 @@ func TestARevealAsksAgainOnceTheCollectionWasOpenTooLongAndACopyIsASecret(t *tes
 	treetest.Button(t, r.p.detail, "Reveal").OnClick()
 	if r.srv.Asked() != asked+1 || string(r.p.revealed) != "secret-x" {
 		t.Fatalf("six minutes on, the reveal asked %d times", r.srv.Asked()-asked)
+	}
+}
+
+func TestAnItemIsSummarisedByItsAccountAndPlaceElseByWhatStoredIt(t *testing.T) {
+	for _, tc := range []struct {
+		attrs map[string]string
+		want  string
+	}{
+		{map[string]string{"username": "stubbedev", "service": "gh:github.com", schemaAttribute: "org.freedesktop.Secret.Generic"}, "stubbedev · gh:github.com"},
+		{map[string]string{"user": "alice", "username": "alice"}, "alice"},
+		{map[string]string{"application": "chrome"}, "chrome"},
+		{map[string]string{schemaAttribute: "org.git.Password"}, "git"},
+		{map[string]string{schemaAttribute: "org.freedesktop.Secret.Generic"}, ""},
+		{nil, ""},
+	} {
+		if got := itemSummary(tc.attrs); got != tc.want {
+			t.Errorf("%v: %q, want %q", tc.attrs, got, tc.want)
+		}
 	}
 }

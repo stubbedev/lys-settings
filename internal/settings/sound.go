@@ -58,7 +58,7 @@ type soundPanel struct {
 	input   *deviceControls
 	meter   *levelMeter
 	apps    *widget.ItemGroup
-	noApps  *widget.Label
+	noApps  *widget.Item
 	appRows map[pulse.StreamKey]*appRow
 	appKeys []pulse.StreamKey
 	ticked  atomic.Bool
@@ -68,7 +68,7 @@ type soundPanel struct {
 
 func soundLead(k *kit) widget.Widget {
 	t := locale.T()
-	p := &soundPanel{Box: gapBox(widget.Column), k: k, appRows: map[pulse.StreamKey]*appRow{}}
+	p := &soundPanel{Box: sectionStack(), k: k, appRows: map[pulse.StreamKey]*appRow{}}
 	p.problem = wrapped(k.label("", css.Error, css.Caption))
 	p.problem.SetVisible(false)
 	p.Append(p.problem, false)
@@ -78,13 +78,13 @@ func soundLead(k *kit) widget.Widget {
 	p.meter.SetAccessibleName(t.Get("settings-sound-level"))
 	p.input.rows.Append(panelRow(k, t.Get("settings-sound-level"), "", p.meter))
 	p.apps = widget.NewItemGroup()
-	p.noApps = k.label(t.Get("settings-sound-no-apps"), css.DimLabel)
+	p.noApps = k.emptyRow("ld-volume-x-symbolic", t.Get("settings-sound-no-apps"))
 	apps := gapBox(widget.Column)
 	apps.Append(p.noApps, false)
 	apps.Append(p.apps, false)
-	p.Append(loginSection(k, "settings-section-sound-output", p.output.body), false)
-	p.Append(loginSection(k, "settings-section-sound-input", p.input.body), false)
-	p.Append(loginSection(k, "settings-section-sound-apps", apps), false)
+	p.Append(newSection(k, "settings-section-sound-output", p.output.body), false)
+	p.Append(newSection(k, "settings-section-sound-input", p.input.body), false)
+	p.Append(newSection(k, "settings-section-sound-apps", apps), false)
 	p.connect()
 	return p
 }
@@ -415,7 +415,7 @@ func (c *deviceControls) showTests(current pulse.Device) {
 	c.tests.Clear()
 	for i, position := range c.testMap {
 		name := t.Get("settings-sound-channel-" + position.String())
-		b := c.p.k.button(c.p.k.label(name), nil, css.Small)
+		b := c.p.k.button(c.p.k.label(name), nil, css.Secondary)
 		b.SetAccessibleName(t.Get("settings-sound-test-channel", i18n.Str("channel", name)))
 		channels, channel := c.testMap, i
 		b.OnClick = func() {
