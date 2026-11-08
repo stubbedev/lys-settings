@@ -439,13 +439,17 @@ const (
 	Float
 	Text
 	Enum
+	// Switch is false, the key off, or an object of the keys Keys lists.
+	Switch
 )
 
 // Field is one key of the schema.
 type Field struct {
-	Kind     Kind
-	Format   string
-	Variants []string
+	Kind   Kind
+	Format string
+	// Variants are the values an Enum takes: strings and booleans, as the file
+	// writes them.
+	Variants []any
 	Min, Max float64
 	// MinItems and MaxItems bound how many items a list takes.
 	MinItems, MaxItems int
@@ -466,7 +470,7 @@ type Schema struct{ root *schemaNode }
 type schemaNode struct {
 	Type             string                 `json:"type"`
 	Format           string                 `json:"format"`
-	Enum             []string               `json:"enum"`
+	Enum             variants               `json:"enum"`
 	Minimum          *float64               `json:"minimum"`
 	ExclusiveMinimum *float64               `json:"exclusiveMinimum"`
 	Maximum          *float64               `json:"maximum"`
@@ -499,6 +503,25 @@ func (n *schemaNode) UnmarshalJSON(data []byte) error {
 	}
 	n.Values = &schemaNode{}
 	return json.Unmarshal(raw.Additional, n.Values)
+}
+
+type variants []any
+
+// UnmarshalJSON reads an enum, refusing a value no editor could offer.
+func (v *variants) UnmarshalJSON(data []byte) error {
+	var raw []any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	for _, x := range raw {
+		switch x.(type) {
+		case string, bool:
+		default:
+			return fmt.Errorf("enum value %v is neither a string nor a boolean", x)
+		}
+	}
+	*v = raw
+	return nil
 }
 
 // Each is the path segment naming every item of a list or every value of a
@@ -534,11 +557,17 @@ func (s *Schema) Field(path []string) (Field, bool) {
 	return node.field()
 }
 
-// Keys lists, sorted, the keys of the object at path; false when path names
-// no object with keys of its own.
+// Keys lists, sorted, the keys of the object at path, or of a Switch's object
+// form; false when path names no object with keys of its own.
 func (s *Schema) Keys(path []string) ([]string, bool) {
 	node, ok := s.node(path)
-	if !ok || len(node.Properties) == 0 {
+	if !ok {
+		return nil, false
+	}
+	if form := node.switched(); form != nil {
+		node = form
+	}
+	if len(node.Properties) == 0 {
 		return nil, false
 	}
 	return slices.Sorted(maps.Keys(node.Properties)), true
@@ -567,6 +596,8 @@ func (s *Schema) node(path []string) (*schemaNode, bool) {
 func (n *schemaNode) field() (Field, bool) {
 	f := Field{Min: -unboundedInt, Max: unboundedInt, MaxItems: unboundedInt, Format: n.Format, Actions: slices.Clone(n.Actions)}
 	switch {
+	case n.switched() != nil:
+		f.Kind = Switch
 	case len(n.OneOf) > 0 || n.Type == "object" || n.Type == "array":
 		f.Kind = Composite
 	case len(n.Enum) > 0:
@@ -633,13 +664,26 @@ func (f Field) Normal(v any) any {
 		case float64:
 			return strconv.FormatFloat(n, 'g', -1, 64)
 		}
-	case Composite:
+	case Composite, Switch:
 		if out, err := normal(v); err == nil {
 			return out
 		}
 	case Bool, Enum:
 	}
 	return v
+}
+
+// switched is the object form of a key that is false or an object, nil for
+// any other key.
+func (n *schemaNode) switched() *schemaNode {
+	if len(n.OneOf) != 2 {
+		return nil
+	}
+	off, on := n.OneOf[0], n.OneOf[1]
+	if off.Type != "boolean" || !slices.Equal([]any(off.Enum), []any{false}) || on.Type != "object" || len(on.Properties) == 0 {
+		return nil
+	}
+	return on
 }
 
 // property is the key of an object, or of the object form of a key that

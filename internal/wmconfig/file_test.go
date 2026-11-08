@@ -609,6 +609,8 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	"a":{"type":"integer","minimum":1,"maximum":4,"default":2},
 	"b":{"type":"number","exclusiveMinimum":0,"maximum":1,"default":1},
 	"c":{"type":"string","enum":["x","y"]},
+	"t":{"enum":[false,"fullscreen",true]},
+	"k":{"oneOf":[{"type":"boolean","enum":[false]},{"type":"object","properties":{"action":{"type":"string"}}}]},
 	"d":{"type":"boolean","default":true},
 	"e":{"oneOf":[{"type":"integer"},{"type":"array"}],"default":8},
 	"i":{"default":"accent","oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string"}}}}]},
@@ -632,8 +634,20 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	if f := field("b"); f.Kind != Float || f.Min != exclusiveStep || f.Default != float64(1) {
 		t.Errorf("b: %+v", f)
 	}
-	if f := field("c"); f.Kind != Enum || !slices.Equal(f.Variants, []string{"x", "y"}) || f.HasDefault {
+	if f := field("c"); f.Kind != Enum || !slices.Equal(f.Variants, []any{"x", "y"}) || f.HasDefault {
 		t.Errorf("c: %+v", f)
+	}
+	if f := field("t"); f.Kind != Enum || !slices.Equal(f.Variants, []any{false, "fullscreen", true}) {
+		t.Errorf("t, a mix of booleans and strings: %+v", f)
+	}
+	if f := field("k"); f.Kind != Switch {
+		t.Errorf("k, false or an object: %+v", f)
+	}
+	if keys, ok := s.Keys([]string{"k"}); !ok || !slices.Equal(keys, []string{"action"}) {
+		t.Errorf("k's object form keys: %v %v", keys, ok)
+	}
+	if f := field("k", "action"); f.Kind != Text {
+		t.Errorf("k.action, beside a form taking only false: %+v", f)
 	}
 	if f := field("d"); f.Kind != Bool || f.Default != true {
 		t.Errorf("d: %+v", f)
@@ -665,7 +679,10 @@ func TestSchemaReadsKindsBoundsAndDefaults(t *testing.T) {
 	if _, ok := s.Field([]string{"a", "b"}); ok {
 		t.Error("a key under a scalar")
 	}
-	for name, data := range map[string]string{"not json": "lys-wm 1", "no keys": `{"type":"object"}`, "not an object": `{"type":"string"}`} {
+	for name, data := range map[string]string{
+		"not json": "lys-wm 1", "no keys": `{"type":"object"}`, "not an object": `{"type":"string"}`,
+		"a numeric enum": `{"type":"object","properties":{"n":{"enum":[1,2]}}}`, "a null enum value": `{"type":"object","properties":{"n":{"enum":["x",null]}}}`,
+	} {
 		if _, err := ParseSchema([]byte(data)); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
@@ -708,7 +725,7 @@ func TestSchemaReachesListItemsAndMappingValues(t *testing.T) {
 	if keys, ok := s.Keys([]string{"outputs", Each}); !ok || !slices.Equal(keys, []string{"match", "scale"}) {
 		t.Errorf("an output's keys: %v %v", keys, ok)
 	}
-	if f, ok := s.Field([]string{"submaps", Each, Each, "flags", Each}); !ok || f.Kind != Enum || !slices.Equal(f.Variants, []string{"locked"}) {
+	if f, ok := s.Field([]string{"submaps", Each, Each, "flags", Each}); !ok || f.Kind != Enum || !slices.Equal(f.Variants, []any{"locked"}) {
 		t.Errorf("a submap bind's flag: %+v %v", f, ok)
 	}
 	if f, ok := s.Field([]string{"env", Each}); !ok || f.Kind != Text {

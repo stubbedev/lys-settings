@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
+	"strings"
 
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-shell/config"
@@ -23,17 +25,18 @@ var sideKeys = [4]string{"wm-side-top", "wm-side-right", "wm-side-bottom", "wm-s
 
 // sidesEditor is a spin per side showing the gap lys-wm uses, all empty and
 // reading "Inherited" only when lys-wm names none. Setting one side while
-// the others are empty sets them all to it; equal sides write one number,
-// others the four, and emptying any side inherits again.
+// the others are empty sets them all to it; equal sides write one number
+// when the key takes one, else the four, and emptying any side inherits again.
 type sidesEditor struct {
 	*widget.Box
 	slot  slot
 	spins [4]*widget.SpinButton
+	one   bool
 }
 
-func newSidesEditor(k *kit, s slot) *sidesEditor {
+func newSidesEditor(k *kit, s slot, one bool) *sidesEditor {
 	t := locale.T()
-	c := &sidesEditor{Box: gapBox(widget.Row), slot: s}
+	c := &sidesEditor{Box: gapBox(widget.Row), slot: s, one: one}
 	for i := range c.spins {
 		spin := widget.NewSpinButton(k.face, k.textPx(), 0, 0, math.MaxInt32, 1, 0)
 		spin.SetOptional(t.Get("settings-inherited"))
@@ -59,7 +62,7 @@ func (c *sidesEditor) write(v float64) {
 		sides[i] = int64(math.Round(s.Value()))
 		same = same && sides[i] == sides[0]
 	}
-	if same {
+	if same && c.one {
 		_ = c.slot.set(sides[0])
 		return
 	}
@@ -222,7 +225,7 @@ func (c *borderEditor) refresh() {
 func wmSides(path string) rowSpec {
 	return wmField(path, func(r *rowSpec) {
 		r.fullWidth = true
-		r.editor = func(k *kit, s slot, _ config.FieldMeta) control { return newSidesEditor(k, s) }
+		r.editor = func(k *kit, s slot, _ config.FieldMeta) control { return newSidesEditor(k, s, true) }
 	})
 }
 
@@ -230,14 +233,26 @@ func wmSides(path string) rowSpec {
 func wmBorder(path string) rowSpec {
 	return wmField(path, func(r *rowSpec) {
 		r.fullWidth = true
-		r.editor = func(k *kit, s slot, _ config.FieldMeta) control {
-			colors, ok := k.wm.fieldOf(path + ".colors")
-			if !ok {
-				log.Panicf("settings: lys-wm's %s takes no colours", path)
-			}
-			return newBorderEditor(k, s, colors)
-		}
+		r.editor = func(k *kit, s slot, _ config.FieldMeta) control { return wmBorderEditor(k, s, wmPath(path)) }
 	})
+}
+
+// wmBorderEditor is the border editor of the key at path, its gradient
+// taking as many colours as lys-wm's schema allows.
+func wmBorderEditor(k *kit, s slot, path []string) control {
+	colors, ok := k.wm.schema.Field(append(slices.Clone(path), "colors"))
+	if !ok {
+		log.Panicf("settings: lys-wm's %s takes no colours", strings.Join(path, "."))
+	}
+	return newBorderEditor(k, s, colors)
+}
+
+// wmItemEditors are the editors, by schema path, of the item keys whose
+// form the schema's types alone do not settle.
+var wmItemEditors = map[string]func(k *kit, s slot, path []string) control{
+	"outputs.[].reserved":      func(k *kit, s slot, _ []string) control { return newSidesEditor(k, s, false) },
+	"rules.[].border.active":   wmBorderEditor,
+	"rules.[].border.inactive": wmBorderEditor,
 }
 
 // wmPaletteRow is the palette row: the names the user gives, which lys-wm

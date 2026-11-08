@@ -60,20 +60,60 @@ func TestEveryWMRowBuildsWithLabelsAgainstTheInstalledLysWM(t *testing.T) {
 		t.Fatal(err)
 	}
 	k.wm = w
-	tr := locale.T()
 	for _, r := range allWMRows() {
 		treetest.Walk(fieldControl(k, w, r), func(x widget.Widget) {
 			c, ok := x.(*cardList)
 			if !ok {
 				return
 			}
-			for _, f := range c.spec.fields {
-				if !tr.Has(f.label) {
-					t.Errorf("%s: no message %s", r.path, f.label)
-				}
+			for _, label := range missingLabels(k, c.spec.fields) {
+				t.Errorf("%s: no message %s", r.path, label)
 			}
 		})
 	}
+}
+
+func TestEveryDisplayFieldHasItsLabelAgainstTheInstalledLysWM(t *testing.T) {
+	if os.Getenv("LYS_SETTINGS_HEADLESS") == "" {
+		t.Skip("needs the dev shell's lys-wm; set by `just test`")
+	}
+	k := testKit(t, "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	w, err := openWM(k, wmconfig.Exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k.wm = w
+	for _, label := range missingLabels(k, wmItemFields(w, []string{outputsPath, wmconfig.Each}, nil, outputsPath)) {
+		t.Errorf("no message %s", label)
+	}
+}
+
+// missingLabels are the labels of fields, and of the fields inside each
+// off-or-object switch among them, that have no message.
+func missingLabels(k *kit, fields []cardField) []string {
+	tr := locale.T()
+	var stored any
+	field := func(string) slot {
+		return slot{get: func() any { return stored }, set: func(v any) error { stored = v; return nil }, unset: func() { stored = nil }}
+	}
+	var missing []string
+	for _, f := range fields {
+		labels := []string{f.label}
+		if f.item != nil {
+			treetest.Walk(f.item(k, field), func(x widget.Widget) {
+				if sw, ok := x.(*wmSwitch); ok {
+					labels = append(labels, sw.labels...)
+				}
+			})
+		}
+		for _, label := range labels {
+			if !tr.Has(label) {
+				missing = append(missing, label)
+			}
+		}
+	}
+	return missing
 }
 
 // systemDefaulted are the lys-wm rows whose value, while unset, lys-wm

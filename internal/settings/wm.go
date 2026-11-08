@@ -106,25 +106,66 @@ func (w *wmBackend) field(path string) (config.FieldMeta, bool) {
 	if !ok {
 		return config.FieldMeta{}, false
 	}
-	meta := config.FieldMeta{Min: f.Min, Max: f.Max, Variants: f.Variants, Optional: !f.HasDefault}
+	meta := config.FieldMeta{Min: f.Min, Max: f.Max, Optional: !f.HasDefault}
+	if choices, ok := wmChoices(f); ok {
+		meta.Kind, meta.Variants = config.FieldEnum, wmChoiceNames(choices)
+		if slices.ContainsFunc(choices, isBool) {
+			meta.Type = wmToggleType
+		}
+		return meta, true
+	}
 	switch f.Kind {
 	case wmconfig.Bool:
 		meta.Kind = config.FieldBool
-		if meta.Optional {
-			meta.Kind, meta.Type, meta.Variants = config.FieldEnum, wmToggleType, []string{wmToggleOn, wmToggleOff}
-		}
 	case wmconfig.Int:
 		meta.Kind = config.FieldInt
 	case wmconfig.Float:
 		meta.Kind = config.FieldFloat
 	case wmconfig.Text:
 		meta.Kind, meta.Type = config.FieldText, f.Format
-	case wmconfig.Enum:
-		meta.Kind = config.FieldEnum
-	case wmconfig.Composite:
+	case wmconfig.Composite, wmconfig.Switch, wmconfig.Enum:
 		meta.Kind = config.FieldOther
 	}
 	return meta, true
+}
+
+// wmChoices are the values a key offers as named choices: an enum's
+// variants, and on and off for a boolean with no default.
+func wmChoices(f wmconfig.Field) ([]any, bool) {
+	switch {
+	case f.Kind == wmconfig.Enum:
+		return f.Variants, true
+	case f.Kind == wmconfig.Bool && !f.HasDefault:
+		return []any{true, false}, true
+	}
+	return nil, false
+}
+
+func isBool(v any) bool {
+	_, ok := v.(bool)
+	return ok
+}
+
+// wmChoiceNames names each choice as the dropdowns show it.
+func wmChoiceNames(choices []any) []string {
+	names := make([]string, len(choices))
+	for i, v := range choices {
+		switch v := v.(type) {
+		case string:
+			names[i] = v
+		case bool:
+			names[i] = wmToggleOff
+			if v {
+				names[i] = wmToggleOn
+			}
+		default:
+			log.Panicf("settings: lys-wm's choice %v is neither a string nor a boolean", v)
+		}
+		if slices.Contains(names[:i], names[i]) {
+			log.Panicf("settings: lys-wm's choices %v name %q twice", choices, names[i])
+		}
+	}
+	return names
 }
 
 // defaultOf is what the key means when no file says: the built-in config's
@@ -186,25 +227,36 @@ func (w *wmBackend) slot(path string) slot {
 		unset: func() { w.dropOverride(path) },
 	}
 	f, ok := w.fieldOf(path)
-	if ok && f.Kind == wmconfig.Bool && !f.HasDefault {
-		return wmToggleSlot(raw)
+	if !ok {
+		return raw
 	}
-	return raw
+	return wmChoiceSlot(f, raw)
 }
 
-func wmToggleSlot(raw slot) slot {
+// wmChoiceSlot shows a key with named choices by those names and stores the
+// value a name stands for; any other key passes through.
+func wmChoiceSlot(f wmconfig.Field, raw slot) slot {
+	choices, ok := wmChoices(f)
+	if !ok {
+		return raw
+	}
+	names := wmChoiceNames(choices)
 	return slot{
 		get: func() any {
-			on, set := raw.get().(bool)
-			switch {
-			case !set:
-				return nil
-			case on:
-				return wmToggleOn
+			v := raw.get()
+			if i := slices.Index(choices, v); i >= 0 {
+				return names[i]
 			}
-			return wmToggleOff
+			return v
 		},
-		set:   func(v any) error { return raw.set(v == wmToggleOn) },
+		set: func(v any) error {
+			name, _ := v.(string)
+			i := slices.Index(names, name)
+			if i < 0 {
+				return fmt.Errorf("settings: %v is not one of lys-wm's choices %v", v, names)
+			}
+			return raw.set(choices[i])
+		},
 		unset: raw.unset,
 	}
 }

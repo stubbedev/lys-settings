@@ -87,12 +87,25 @@ func wmItemFields(w *wmBackend, schema, within []string, labels string) []cardFi
 		path := append(slices.Clone(schema), key)
 		inner := append(slices.Clone(within), key)
 		label := labels + "." + key
+		if edit, ok := wmItemEditors[strings.Join(path, ".")]; ok {
+			out = append(out, cardField{label: wmKey(label), fill: true, item: func(k *kit, field func(key string) slot) control {
+				return edit(k, nestedSlot(field(inner[0]), inner[1:]), path)
+			}})
+			continue
+		}
+		f, _ := w.schema.Field(path)
+		if f.Kind == wmconfig.Switch {
+			fields := wmItemFields(w, path, nil, label)
+			out = append(out, cardField{label: wmKey(label), fill: true, item: func(k *kit, field func(key string) slot) control {
+				return newWMSwitch(k, nestedSlot(field(inner[0]), inner[1:]), fields)
+			}})
+			continue
+		}
 		if _, nested := w.schema.Keys(path); nested {
 			out = append(out, wmItemFields(w, path, inner, label)...)
 			continue
 		}
 		edit := wmLeafEditor(w, path)
-		f, _ := w.schema.Field(path)
 		out = append(out, cardField{label: wmKey(label), fill: f.Kind == wmconfig.Text || f.Kind == wmconfig.Composite, item: func(k *kit, field func(key string) slot) control {
 			return edit(k, nestedSlot(field(inner[0]), inner[1:]))
 		}})
@@ -109,9 +122,11 @@ func wmLeafEditor(w *wmBackend, path []string) func(k *kit, s slot) control {
 		log.Panicf("settings: lys-wm has no %s", name)
 	}
 	if f.Kind == wmconfig.Composite {
-		elem, ok := w.field(strings.Join(append(slices.Clone(path), wmconfig.Each), "."))
+		each := append(slices.Clone(path), wmconfig.Each)
+		elem, ok := w.field(strings.Join(each, "."))
+		words, _ := w.schema.Field(each)
 		switch {
-		case ok && elem.Kind == config.FieldEnum:
+		case ok && words.Kind == wmconfig.Enum && !slices.ContainsFunc(words.Variants, isBool):
 			return func(k *kit, s slot) control { return newListEditor(k, s, enumListSpec(elem)) }
 		case ok && elem.Kind == config.FieldText:
 			return func(k *kit, s slot) control { return newListEditor(k, s, stringListSpec()) }
@@ -120,10 +135,7 @@ func wmLeafEditor(w *wmBackend, path []string) func(k *kit, s slot) control {
 	}
 	meta, _ := w.field(name)
 	return func(k *kit, s slot) control {
-		if f.Kind == wmconfig.Bool && !f.HasDefault {
-			s = wmToggleSlot(s)
-		}
-		c, err := autoEditor(k, s, name, meta)
+		c, err := autoEditor(k, wmChoiceSlot(f, s), name, meta)
 		if err != nil {
 			log.Panicf("settings: %s: %v", name, err)
 		}

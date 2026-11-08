@@ -23,9 +23,10 @@ import (
 const wmSchema = `{"type":"object","properties":{
 "gaps":{"type":"object","properties":{"inner":{"type":"integer","minimum":0,"default":8},"outer":{"oneOf":[{"type":"integer"},{"type":"array"}]}}},
 "tearing":{"type":"boolean","default":false},
+"hdr":{"enum":[false,"fullscreen",true]},
 "binds":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string","format":"lys-wm-action","x-lys-wm-actions":[{"name":"kill","summary":"Close"},{"name":"exec","args":"<command>","summary":"Run"},{"name":"workspace","args":"<n>","summary":"Show"}]},"chord":{"type":"string","format":"lys-wm-chord"},"flags":{"type":"array","items":{"type":"string","enum":["locked","repeating"]}}},"additionalProperties":false}},
 "submaps":{"type":"object","additionalProperties":{"type":"array","items":{"type":"object","properties":{"action":{"type":"string","format":"lys-wm-action","x-lys-wm-actions":[{"name":"kill","summary":"Close"}]},"chord":{"type":"string","format":"lys-wm-chord"}},"additionalProperties":false}}},
-"rules":{"type":"array","items":{"type":"object","properties":{"app_id":{"type":"string"},"float":{"type":"boolean"},"look":{"type":"object","properties":{"grain":{"type":"number"}}}}}},
+"rules":{"type":"array","items":{"type":"object","properties":{"animation":{"oneOf":[{"type":"boolean","enum":[false]},{"type":"object","properties":{"in":{"type":"string"},"out":{"type":"string"}},"additionalProperties":false}]},"app_id":{"type":"string"},"float":{"type":"boolean"},"look":{"type":"object","properties":{"grain":{"type":"number"}}}}}},
 "borders":{"type":"object","properties":{"active":{"default":"accent","oneOf":[{"type":"string","format":"lys-wm-color"},{"type":"object","properties":{"angle":{"type":"number"},"colors":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string"}}}}]}}},
 "decoration":{"type":"object","properties":{"active_opacity":{"type":"number","minimum":0,"maximum":1,"default":1},"shadow":{"type":"object","properties":{"color":{"type":"string","format":"lys-wm-color","default":"#00000060"}}}}},
 "input":{"type":"object","properties":{"touchpad":{"type":"object","properties":{"tap":{"type":"boolean"},"click_method":{"type":"string","enum":["none","clickfinger"]}}},
@@ -433,6 +434,46 @@ func TestAnOptionalToggleWritesABoolAndUnsets(t *testing.T) {
 	}
 }
 
+func TestAnEnumOfBooleansAndWordsWritesEachAsItsOwnType(t *testing.T) {
+	k, w, _, files := wmKit(t, "binds: []\n")
+	c := fieldControl(k, w, wmField("hdr")).(*optionalEnum)
+	if got, want := c.Items(), []string{locale.T().Get("settings-inherit"), "Off", "fullscreen", "On"}; !slices.Equal(got, want) {
+		t.Fatalf("choices %q, want %q", got, want)
+	}
+	for i, want := range []string{"hdr: false\n", "hdr: fullscreen\n", "hdr: true\n"} {
+		c.OnSelect(i + 1)
+		if got := fileText(t, files.runtime); !strings.Contains(got, want) {
+			t.Fatalf("choice %d wrote %q, want %q", i+1, got, want)
+		}
+		c.refresh()
+		if c.Selected() != i+1 {
+			t.Fatalf("choice %d reads back as %d", i+1, c.Selected())
+		}
+	}
+}
+
+func TestAChoiceSlotRefusesANameItDoesNotOffer(t *testing.T) {
+	var stored any = "fullscreen"
+	raw := slot{get: func() any { return stored }, set: func(v any) error { stored = v; return nil }, unset: func() { stored = nil }}
+	s := wmChoiceSlot(wmconfig.Field{Kind: wmconfig.Enum, Variants: []any{false, "fullscreen", true}}, raw)
+	if err := s.set("false"); err == nil {
+		t.Fatal("the word false was taken for the boolean")
+	}
+	if stored != "fullscreen" {
+		t.Fatalf("a refused name stored %#v", stored)
+	}
+	if err := s.set(wmToggleOff); err != nil || stored != false {
+		t.Fatalf("off stored %#v: %v", stored, err)
+	}
+	if got := s.get(); got != wmToggleOff {
+		t.Fatalf("false reads as %#v", got)
+	}
+	stored = nil
+	if got := s.get(); got != nil {
+		t.Fatalf("unset reads as %#v", got)
+	}
+}
+
 func TestBindsAreCardsWithAFilter(t *testing.T) {
 	const declared = "# keep\nbinds:\n  - {chord: SUPER + Q, action: kill}\n  - {chord: SUPER + F, action: fullscreen, flags: [locked]}\ntearing: true\n"
 	k, w, _, files := wmKit(t, declared)
@@ -467,19 +508,19 @@ func TestBindsAreCardsWithAFilter(t *testing.T) {
 func TestARulesNestedObjectAndToggleWriteInsideTheItem(t *testing.T) {
 	k, w, _, files := wmKit(t, "rules:\n  - {app_id: foot}\n")
 	c := fieldControl(k, w, wmObjects("rules", "app_id")).(*cardList)
-	if len(c.spec.fields) != 3 {
-		t.Fatalf("%d fields, want app_id, float and look.grain", len(c.spec.fields))
+	if len(c.spec.fields) != 4 {
+		t.Fatalf("%d fields, want animation, app_id, float and look.grain", len(c.spec.fields))
 	}
 	if len(c.cards[0].controls) != 0 || c.cards[0].root.Children()[2].(*widget.Box).Visible() {
 		t.Fatal("a collapsed card built or shows its fields")
 	}
 	disclose := treetest.WithClass(c.cards[0].root, "card-disclose")[0].(*widget.Button)
 	disclose.ClickAt(widget.Point{})
-	if len(c.cards[0].controls) != 3 || !c.cards[0].root.Children()[2].(*widget.Box).Visible() {
+	if len(c.cards[0].controls) != 4 || !c.cards[0].root.Children()[2].(*widget.Box).Visible() {
 		t.Fatalf("opening the card built %d controls", len(c.cards[0].controls))
 	}
-	if _, ok := c.cards[0].controls[1].(*optionalEnum); !ok {
-		t.Fatalf("a rule's float takes %T, want the inherit-or-pick select", c.cards[0].controls[1])
+	if _, ok := c.cards[0].controls[2].(*optionalEnum); !ok {
+		t.Fatalf("a rule's float takes %T, want the inherit-or-pick select", c.cards[0].controls[2])
 	}
 	grain := nestedSlot(c.fieldSlot(0, "look"), []string{"grain"})
 	if err := grain.set(0.5); err != nil {
@@ -493,8 +534,48 @@ func TestARulesNestedObjectAndToggleWriteInsideTheItem(t *testing.T) {
 		t.Error("dropping the last nested key left an empty object")
 	}
 	disclose.ClickAt(widget.Point{})
-	if c.cards[0].root.Children()[2].(*widget.Box).Visible() || len(c.cards[0].controls) != 3 {
+	if c.cards[0].root.Children()[2].(*widget.Box).Visible() || len(c.cards[0].controls) != 4 {
 		t.Error("closing the card left its fields shown, or rebuilt them")
+	}
+}
+
+func TestAnOffOrObjectKeyInheritsTurnsOffOrTakesItsFields(t *testing.T) {
+	k, w, _, files := wmKit(t, "rules:\n  - {app_id: foot}\n")
+	c := fieldControl(k, w, wmObjects("rules", "app_id")).(*cardList)
+	treetest.WithClass(c.cards[0].root, "card-disclose")[0].(*widget.Button).ClickAt(widget.Point{})
+	sw, ok := c.cards[0].controls[0].(*wmSwitch)
+	if !ok {
+		t.Fatalf("a rule's animation takes %T, want the off-or-fields switch", c.cards[0].controls[0])
+	}
+	if sw.choice.Selected() != switchInherit || sw.body.Visible() || len(sw.fields) != 2 {
+		t.Fatalf("unset shows %d, fields shown %v, %d fields", sw.choice.Selected(), sw.body.Visible(), len(sw.fields))
+	}
+	sw.choice.OnSelect(switchOff)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "animation: false") {
+		t.Fatalf("off wrote %q", got)
+	}
+	if sw.choice.Selected() != switchOff || sw.body.Visible() {
+		t.Fatalf("off shows %d, fields shown %v", sw.choice.Selected(), sw.body.Visible())
+	}
+	sw.choice.OnSelect(switchOn)
+	if got := fileText(t, files.runtime); !strings.Contains(got, "animation: false") {
+		t.Fatalf("on with no field set wrote %q", got)
+	}
+	if sw.choice.Selected() != switchOn || !sw.body.Visible() {
+		t.Fatalf("on shows %d, fields shown %v", sw.choice.Selected(), sw.body.Visible())
+	}
+	if err := nestedSlot(c.fieldSlot(0, "animation"), []string{"in"}).set("fade"); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileText(t, files.runtime); !strings.Contains(got, "in: fade") || strings.Contains(got, "animation: false") {
+		t.Fatalf("a field set while off wrote %q", got)
+	}
+	sw.choice.OnSelect(switchInherit)
+	if got := fileText(t, files.runtime); strings.Contains(got, "animation") || !strings.Contains(got, "app_id: foot") {
+		t.Fatalf("inherit wrote %q", got)
+	}
+	if sw.choice.Selected() != switchInherit || sw.body.Visible() {
+		t.Fatalf("inherit shows %d, fields shown %v", sw.choice.Selected(), sw.body.Visible())
 	}
 }
 
@@ -540,6 +621,17 @@ func TestOuterGapsWriteOneNumberOrFour(t *testing.T) {
 	c.refresh()
 	if got := fileText(t, files.runtime); strings.Contains(got, "outer") || !c.spins[0].Empty() {
 		t.Fatalf("inheriting kept %q", got)
+	}
+}
+
+func TestSidesThatTakeNoSingleNumberWriteFourEvenWhenEqual(t *testing.T) {
+	k, _, _, _ := wmKit(t, "")
+	var stored any
+	c := newSidesEditor(k, slot{get: func() any { return stored }, set: func(v any) error { stored = v; return nil }, unset: func() { stored = nil }}, false)
+	c.spins[0].KeyAction(widget.KeyUp, 0)
+	got, _ := stored.([]any)
+	if want := []any{int64(1), int64(1), int64(1), int64(1)}; !slices.Equal(got, want) {
+		t.Fatalf("equal sides stored %#v, want %#v", stored, want)
 	}
 }
 
