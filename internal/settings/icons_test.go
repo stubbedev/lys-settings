@@ -1,14 +1,24 @@
 package settings
 
 import (
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/stubbedev/lys-desktop/resources"
 )
 
 func TestEveryIconTheAppNamesIsOneItShips(t *testing.T) {
+	list, err := os.ReadFile(filepath.Join("..", "..", "resources", "icons.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := strings.Fields(string(list))
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -25,9 +35,11 @@ func TestEveryIconTheAppNamesIsOneItShips(t *testing.T) {
 		}
 		for _, m := range name.FindAllSubmatch(data, -1) {
 			seen++
-			icon := filepath.Join("..", "..", "resources", "icons", "hicolor", "scalable", "actions", string(m[1])+".svg")
-			if _, err := os.Stat(icon); err != nil {
-				t.Errorf("%s names %s, which resources/icons does not hold", f, m[1])
+			if !slices.Contains(listed, string(m[1])) {
+				t.Errorf("%s names %s, which resources/icons.txt does not list", f, m[1])
+			}
+			if _, err := fs.Stat(resources.Icons, path.Join(resources.IconsDir, string(m[1])+".svg")); err != nil {
+				t.Errorf("%s names %s, which the bundle does not hold", f, m[1])
 			}
 		}
 	}

@@ -17,7 +17,7 @@ in
     pname = "lys-settings";
     inherit version src;
 
-    vendorHash = "sha256-lxX2BmmnNhJ+qpYtSP7/v/WrNPmRtk8kAAX1+PQshtk=";
+    vendorHash = "sha256-iVhn+EsycBJ8o78TP8Sd1mh++F0h6LTCd37azWRg6CY=";
 
     subPackages = ["cmd/lys-settings"];
 
@@ -39,8 +39,7 @@ in
     postInstall = ''
       install -Dm0644 resources/dev.stubbe.lys.settings.desktop -t $out/share/applications
       install -Dm0644 resources/lys-settings.svg -t $out/share/icons/hicolor/scalable/apps
-      install -Dm0644 resources/icons/hicolor/scalable/actions/*.svg \
-        -t $out/share/lys-settings/icons/hicolor/scalable/actions
+      go tool install-icons $out/share/lys-settings/icons/hicolor/scalable/actions $(cat resources/icons.txt)
     '';
 
     postFixup = ''

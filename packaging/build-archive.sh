@@ -19,6 +19,6 @@ cp "${DIST_DIR}/lys-settings" LICENSE \
 	resources/dev.stubbe.lys.settings.desktop \
 	resources/lys-settings.svg \
 	"${STAGING}/"
-cp -R resources/icons/hicolor "${STAGING}/icons/"
+cp -R "${DIST_DIR}/icons/hicolor" "${STAGING}/icons/"
 tar czf "${STAGING}.tar.gz" "${STAGING}"
 rm -rf "${STAGING}"

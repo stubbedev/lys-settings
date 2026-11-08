@@ -45,6 +45,7 @@ build:
 # Build the release binary into dist/, as the archive and the packages ship it.
 dist version="dev":
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -I {{fhs_interpreter}} -X main.version={{version}}" -o dist/ ./cmd/lys-settings
+    go tool install-icons dist/icons/hicolor/scalable/actions $(cat resources/icons.txt)
 
 # Run the settings app.
 run *args:
