@@ -6,7 +6,7 @@ require (
 	github.com/ebitengine/purego v0.11.2
 	github.com/stubbedev/lys-lib v0.3.13
 	github.com/stubbedev/lys-secrets v0.3.15
-	github.com/stubbedev/lys-shell v0.3.17
+	github.com/stubbedev/lys-shell v0.3.18
 	github.com/stubbedev/lys-ui v0.2.18
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/image v0.47.0

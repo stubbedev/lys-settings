@@ -307,10 +307,13 @@ func dockPage(*config.Config) pageSpec {
 			field("dock.monitors", stringList),
 			field("dock.edge"),
 			field("dock.auto-hide"),
+			field("dock.auto-hide-delay-ms"),
 			field("dock.pinned", pinnedApps),
 		}},
 		{title: "settings-section-appearance", rows: []rowSpec{
 			field("dock.icon-size", sizeBase(config.TaskIconBaseRem)),
+			field("dock.hover-zoom"),
+			field("dock.hover-zoom-size", sizeBase(config.TaskIconBaseRem)),
 			field("dock.icon", iconRow),
 		}},
 	}}
