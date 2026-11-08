@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/i18n"
 
 	"github.com/stubbedev/lys-settings/internal/locale"
 	"github.com/stubbedev/lys-settings/internal/wmconfig"

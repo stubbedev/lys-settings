@@ -5,10 +5,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stubbedev/lys-desktop/shell/apptheme"
+	"github.com/stubbedev/lys-desktop/shell/treetest"
+	"github.com/stubbedev/lys-desktop/styling"
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-shell/shell/apptheme"
-	"github.com/stubbedev/lys-shell/shell/treetest"
-	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/widget"
 
 	"github.com/stubbedev/lys-settings/internal/locale"

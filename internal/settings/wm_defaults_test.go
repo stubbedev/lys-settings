@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stubbedev/lys-desktop/config"
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-ui/widget"
 )
 

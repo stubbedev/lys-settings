@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stubbedev/lys-desktop/desktopentry"
+	"github.com/stubbedev/lys-desktop/shell/treetest"
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-shell/desktopentry"
-	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
 )
 

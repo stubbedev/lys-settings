@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/i18n"
+	"github.com/stubbedev/lys-desktop/strftime"
 	"github.com/stubbedev/lys-lib/atomicfile"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/strftime"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 

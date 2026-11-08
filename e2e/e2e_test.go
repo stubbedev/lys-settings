@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/lys-shell/settingspage"
+	"github.com/stubbedev/lys-desktop/settingspage"
 	"github.com/stubbedev/lys-ui/app"
 
 	"github.com/stubbedev/lys-settings/internal/wmconfig"

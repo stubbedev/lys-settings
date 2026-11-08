@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stubbedev/lys-desktop/shell/treetest"
 	"github.com/stubbedev/lys-lib/xkb"
-	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
 )
 

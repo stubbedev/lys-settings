@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stubbedev/lys-shell/testhome"
+	"github.com/stubbedev/lys-desktop/testhome"
 )
 
 const noHostDir = "/nonexistent/lys-settings-test"

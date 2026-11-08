@@ -4,10 +4,10 @@ go 1.27.3
 
 require (
 	github.com/ebitengine/purego v0.11.2
-	github.com/stubbedev/lys-lib v0.3.15-0.20261108163854-5a73eeab2d2c
+	github.com/stubbedev/lys-desktop v0.0.0-20261108172414-4fb847c24b62
+	github.com/stubbedev/lys-lib v0.3.15-0.20261108170839-b9361bb635d5
 	github.com/stubbedev/lys-secrets v0.3.16-0.20261108170907-e6e5dc236295
-	github.com/stubbedev/lys-shell v0.3.19-0.20261108171134-7bfd060c48dd
-	github.com/stubbedev/lys-ui v0.2.19-0.20261108170000-3a25e8c18505
+	github.com/stubbedev/lys-ui v0.2.19-0.20261108170851-7a09fc304065
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0

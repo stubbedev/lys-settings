@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stubbedev/lys-desktop/portal/permissions"
+	"github.com/stubbedev/lys-desktop/settingspage"
+	"github.com/stubbedev/lys-desktop/shell/apptheme"
+	"github.com/stubbedev/lys-desktop/shell/treetest"
 	"github.com/stubbedev/lys-lib/dbustest"
 	"github.com/stubbedev/lys-lib/dbusx"
 	"github.com/stubbedev/lys-lib/render"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
-	"github.com/stubbedev/lys-shell/portal/permissions"
-	"github.com/stubbedev/lys-shell/settingspage"
-	"github.com/stubbedev/lys-shell/shell/apptheme"
-	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-ui/widget"
 
 	"github.com/stubbedev/lys-settings/internal/locale"

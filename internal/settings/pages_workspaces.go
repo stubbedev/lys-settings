@@ -1,6 +1,6 @@
 package settings
 
-import "github.com/stubbedev/lys-shell/config"
+import "github.com/stubbedev/lys-desktop/config"
 
 // The workspace module pages (pages/modules/*_workspaces).
 

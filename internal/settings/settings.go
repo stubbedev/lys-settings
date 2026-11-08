@@ -8,10 +8,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/logging"
-	"github.com/stubbedev/lys-shell/service/clipboard"
-	"github.com/stubbedev/lys-shell/shell/apptheme"
+	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/logging"
+	"github.com/stubbedev/lys-desktop/service/clipboard"
+	"github.com/stubbedev/lys-desktop/shell/apptheme"
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/widget"
 

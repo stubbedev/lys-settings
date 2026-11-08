@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/desktopentry"
+	"github.com/stubbedev/lys-desktop/portal/permissions"
+	"github.com/stubbedev/lys-desktop/settingspage"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/desktopentry"
-	"github.com/stubbedev/lys-shell/portal/permissions"
-	"github.com/stubbedev/lys-shell/settingspage"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 

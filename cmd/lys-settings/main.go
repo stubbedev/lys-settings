@@ -10,7 +10,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/stubbedev/lys-shell/settingspage"
+	"github.com/stubbedev/lys-desktop/settingspage"
 
 	"github.com/stubbedev/lys-settings/internal/settings"
 )

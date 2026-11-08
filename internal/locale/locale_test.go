@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/lys-shell/i18n"
+	"github.com/stubbedev/lys-desktop/i18n"
 )
 
 var messageLine = regexp.MustCompile(`(?m)^(?:([a-z][a-zA-Z0-9-]*) *=|\s+\.([a-z][a-zA-Z0-9-]*) *=)`)

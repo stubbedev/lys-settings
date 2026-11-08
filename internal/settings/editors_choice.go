@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/i18n"
+	"github.com/stubbedev/lys-desktop/styling"
 	"github.com/stubbedev/lys-lib/render"
-	"github.com/stubbedev/lys-shell/config"
-	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/styling"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 

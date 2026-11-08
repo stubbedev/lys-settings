@@ -1,6 +1,6 @@
 package settings
 
-import "github.com/stubbedev/lys-shell/config"
+import "github.com/stubbedev/lys-desktop/config"
 
 // barGeneralPage is pages/bar/general.
 func barGeneralPage(*config.Config) pageSpec {
