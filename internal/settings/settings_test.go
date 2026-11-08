@@ -17,7 +17,7 @@ import (
 	"github.com/stubbedev/lys-lib/sockdir"
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/i18n"
-	"github.com/stubbedev/lys-shell/service/recorder"
+	"github.com/stubbedev/lys-shell/service/recorder/devicechoice"
 	"github.com/stubbedev/lys-shell/shell/apptheme"
 	"github.com/stubbedev/lys-shell/shell/treetest"
 	"github.com/stubbedev/lys-shell/styling"
@@ -45,8 +45,8 @@ func testKit(t *testing.T, configYAML string) *kit {
 	// The device lists never reach the session's audio daemon or the
 	// machine's cameras.
 	mics, cams := microphoneChoices, cameraChoices
-	microphoneChoices = func() []recorder.DeviceChoice { return recorder.MicrophoneChoices(nil) }
-	cameraChoices = func() []recorder.DeviceChoice { return []recorder.DeviceChoice{{ID: "", Label: "Automatic"}} }
+	microphoneChoices = func() []devicechoice.DeviceChoice { return devicechoice.MicrophoneChoices(nil) }
+	cameraChoices = func() []devicechoice.DeviceChoice { return []devicechoice.DeviceChoice{{ID: "", Label: "Automatic"}} }
 	t.Cleanup(func() { microphoneChoices, cameraChoices = mics, cams })
 	lists := systemLists
 	systemLists = fixedLists()
@@ -1770,8 +1770,8 @@ func TestModulePagesFollowTheRustOrder(t *testing.T) {
 
 func TestDeviceSelect(t *testing.T) {
 	k := testKit(t, "modules:\n  recorder:\n    webcam-device: /dev/video9\n")
-	cameraChoices = func() []recorder.DeviceChoice {
-		return []recorder.DeviceChoice{{ID: "", Label: "Automatic"}, {ID: "/dev/video0", Label: "Integrated"}}
+	cameraChoices = func() []devicechoice.DeviceChoice {
+		return []devicechoice.DeviceChoice{{ID: "", Label: "Automatic"}, {ID: "/dev/video0", Label: "Integrated"}}
 	}
 	cam := fieldControl(k, k.store, field("modules.recorder.webcam-device", webcamDevice)).(*deviceSelect)
 	// The saved camera is gone: it stays listed, under its path, selected.
@@ -1794,8 +1794,8 @@ func TestDeviceSelect(t *testing.T) {
 	k.background = func(fn func()) { deliver = fn }
 	k.invoke = func(fn func()) { onLoop = fn }
 	_ = k.store.set("modules.recorder.microphone-device", "usb")
-	microphoneChoices = func() []recorder.DeviceChoice {
-		return recorder.MicrophoneChoices([]recorder.Source{{Name: "mic", Description: "Microphone"}, {Name: "usb", Description: "USB"}})
+	microphoneChoices = func() []devicechoice.DeviceChoice {
+		return devicechoice.MicrophoneChoices([]devicechoice.Source{{Name: "mic", Description: "Microphone"}, {Name: "usb", Description: "USB"}})
 	}
 	mic := fieldControl(k, k.store, field("modules.recorder.microphone-device", microphoneDevice)).(*deviceSelect)
 	if mic.Selection() != "usb" || deliver == nil {

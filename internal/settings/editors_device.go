@@ -9,7 +9,7 @@ import (
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-shell/config"
 	"github.com/stubbedev/lys-shell/service/pulse"
-	"github.com/stubbedev/lys-shell/service/recorder"
+	"github.com/stubbedev/lys-shell/service/recorder/devicechoice"
 	"github.com/stubbedev/lys-ui/widget"
 )
 
@@ -18,11 +18,11 @@ import (
 type deviceSelect struct {
 	*widget.Dropdown
 	slot    slot
-	choices []recorder.DeviceChoice
+	choices []devicechoice.DeviceChoice
 	syncing bool
 }
 
-func newDeviceSelect(k *kit, s slot, choices []recorder.DeviceChoice) *deviceSelect {
+func newDeviceSelect(k *kit, s slot, choices []devicechoice.DeviceChoice) *deviceSelect {
 	c := &deviceSelect{Dropdown: widget.NewDropdown(k.face, k.textPx(), nil, 0), slot: s}
 	c.OnSelect = func(i int) {
 		if !c.syncing && i >= 0 && i < len(c.choices) {
@@ -34,21 +34,21 @@ func newDeviceSelect(k *kit, s slot, choices []recorder.DeviceChoice) *deviceSel
 }
 
 // setChoices replaces the list (SetChoices), selecting the saved id.
-func (c *deviceSelect) setChoices(choices []recorder.DeviceChoice) {
+func (c *deviceSelect) setChoices(choices []devicechoice.DeviceChoice) {
 	saved := c.slot.text()
-	c.choices = recorder.WithSaved(choices, saved)
-	c.SetItems(recorder.ChoiceLabels(c.choices), recorder.ChoiceIndex(c.choices, saved))
+	c.choices = devicechoice.WithSaved(choices, saved)
+	c.SetItems(devicechoice.ChoiceLabels(c.choices), devicechoice.ChoiceIndex(c.choices, saved))
 }
 
 // refresh selects the saved id without writing.
 func (c *deviceSelect) refresh() {
 	c.syncing = true
-	c.SetSelected(recorder.ChoiceIndex(c.choices, c.slot.text()))
+	c.SetSelected(devicechoice.ChoiceIndex(c.choices, c.slot.text()))
 	c.syncing = false
 }
 
 // cameraChoices lists the cameras (a seam for tests).
-var cameraChoices = recorder.Cameras
+var cameraChoices = devicechoice.Cameras
 
 // microphoneQueryTimeout bounds the audio daemon's source listing.
 const microphoneQueryTimeout = 5 * time.Second
@@ -56,12 +56,12 @@ const microphoneQueryTimeout = 5 * time.Second
 // microphoneChoices asks the audio daemon for its sources
 // (dev.stubbe.lys.Audio1 ListSources), monitors dropped by their name; with
 // no daemon the list is the default alone (a seam for tests).
-var microphoneChoices = func() []recorder.DeviceChoice {
+var microphoneChoices = func() []devicechoice.DeviceChoice {
 	sources, _ := audioDaemonSources()
-	return recorder.MicrophoneChoices(sources)
+	return devicechoice.MicrophoneChoices(sources)
 }
 
-func audioDaemonSources() ([]recorder.Source, bool) {
+func audioDaemonSources() ([]devicechoice.Source, bool) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return nil, false
@@ -74,9 +74,9 @@ func audioDaemonSources() ([]recorder.Source, bool) {
 		log.Printf("settings: audio sources: %v", err)
 		return nil, false
 	}
-	sources := make([]recorder.Source, len(entries))
+	sources := make([]devicechoice.Source, len(entries))
 	for i, e := range entries {
-		sources[i] = recorder.Source{Name: e.Name, Description: e.Description, Monitor: strings.HasSuffix(e.Name, ".monitor")}
+		sources[i] = devicechoice.Source{Name: e.Name, Description: e.Description, Monitor: strings.HasSuffix(e.Name, ".monitor")}
 	}
 	return sources, true
 }
@@ -89,7 +89,7 @@ var webcamDevice = withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
 // microphoneDevice is microphone_device_select: the default alone at
 // first, the daemon's sources once they arrive.
 var microphoneDevice = withEditor(func(k *kit, s slot, _ config.FieldMeta) control {
-	c := newDeviceSelect(k, s, recorder.MicrophoneChoices(nil))
+	c := newDeviceSelect(k, s, devicechoice.MicrophoneChoices(nil))
 	async(k, microphoneChoices, c.setChoices)
 	return c
 })
