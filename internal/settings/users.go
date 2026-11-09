@@ -310,7 +310,7 @@ type accountsOpened struct {
 
 func (p *usersPanel) load() {
 	async(p.k, func() accountsOpened {
-		conn, err := connectSystemBus()
+		conn, err := p.k.systemBus()
 		if err != nil {
 			return accountsOpened{err: err}
 		}

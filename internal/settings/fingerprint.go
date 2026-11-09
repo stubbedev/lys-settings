@@ -120,7 +120,7 @@ type fingerprintSection struct {
 	fp       *fprint
 	stages   int
 	enrolled []string
-	fingers  *widget.Box
+	fingers  *widget.FlowBox
 	ring     *enrollRing
 	hint     *widget.Label
 	cancel   *widget.Button
@@ -170,7 +170,7 @@ func withTimeoutValue[T any](fn func(context.Context) T) T {
 func newFingerprintSection(k *kit, fp *fprint, stages int, enrolled []string, fail func(error)) *fingerprintSection {
 	t := locale.T()
 	s := &fingerprintSection{Box: gapBox(widget.Column), k: k, fp: fp, stages: stages, enrolled: enrolled}
-	s.fingers = gapBox(widget.Row)
+	s.fingers = widget.NewWrapBox(widget.Current().Spacing, widget.Current().Spacing, widget.JustifyStart)
 	s.fingers.AddClass("fingerprint-fingers")
 	s.Append(s.fingers, false)
 	s.ring = &enrollRing{ProgressRing: widget.NewProgressRing(0), stages: stages}
@@ -221,7 +221,7 @@ func (s *fingerprintSection) showFingers(fail func(error)) {
 				s.enroll(f, fail)
 			}
 		}
-		s.fingers.Append(b, false)
+		s.fingers.Append(b)
 	}
 }
 

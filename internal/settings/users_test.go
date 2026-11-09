@@ -29,6 +29,7 @@ import (
 type fakeAccounts struct {
 	*fakeSys
 	selfPath dbus.ObjectPath
+	cached   []dbus.ObjectPath
 }
 
 func (f fakeAccounts) FindUserById(uid int64) (dbus.ObjectPath, *dbus.Error) {
@@ -37,7 +38,7 @@ func (f fakeAccounts) FindUserById(uid int64) (dbus.ObjectPath, *dbus.Error) {
 }
 
 func (f fakeAccounts) ListCachedUsers() ([]dbus.ObjectPath, *dbus.Error) {
-	return []dbus.ObjectPath{f.selfPath, "/org/freedesktop/Accounts/User2000"}, nil
+	return f.cached, nil
 }
 
 func (f fakeAccounts) CreateUser(name, real string, kind int32) (dbus.ObjectPath, *dbus.Error) {
@@ -62,28 +63,44 @@ func (f fakeAccountUser) SetAccountType(kind int32) *dbus.Error {
 	return f.record("SetAccountType", kind)
 }
 
-func serveAccounts(t *testing.T, accountType int32) (*dbustest.Bus, *fakeSys, *fakeSys) {
+type fakeAccount struct {
+	name, real  string
+	uid         uint64
+	accountType int32
+	icon        string
+}
+
+var (
+	alice = fakeAccount{name: "alice", real: "Alice", uid: 1000}
+	bob   = fakeAccount{name: "bob", real: "Bob", uid: 2000}
+)
+
+func (a fakeAccount) path() dbus.ObjectPath {
+	return dbus.ObjectPath(fmt.Sprintf("/org/freedesktop/Accounts/User%d", a.uid))
+}
+
+func serveAccounts(t *testing.T, bus *dbustest.Bus, self fakeAccount, others ...fakeAccount) (manager, user *fakeSys) {
 	t.Helper()
-	bus := dbustest.Start(t)
 	conn := bus.Conn(t)
-	self := dbus.ObjectPath("/org/freedesktop/Accounts/User1000")
-	manager := &fakeSys{props: map[string]any{"DaemonVersion": "23.13"}}
-	user := &fakeSys{props: map[string]any{"UserName": "alice", "RealName": "Alice", "IconFile": "", "AccountType": accountType, "Uid": uint64(1000)}}
-	other := &fakeSys{props: map[string]any{"UserName": "bob", "RealName": "Bob", "IconFile": "", "AccountType": int32(0), "Uid": uint64(2000)}}
-	manager.conn, user.conn, other.conn = conn, conn, conn
-	if _, err := dbusx.Export(conn, accountsPath, dbusx.Interface{Name: accountsName, Methods: fakeAccounts{manager, self}, Properties: manager.getters()}); err != nil {
-		t.Fatal(err)
+	manager = &fakeSys{props: map[string]any{"DaemonVersion": "23.13"}, conn: conn}
+	cached := make([]dbus.ObjectPath, 0, 1+len(others))
+	for i, a := range append([]fakeAccount{self}, others...) {
+		f := &fakeSys{props: map[string]any{"UserName": a.name, "RealName": a.real, "IconFile": a.icon, "AccountType": a.accountType, "Uid": a.uid}, conn: conn}
+		if i == 0 {
+			user = f
+		}
+		if _, err := dbusx.Export(conn, a.path(), dbusx.Interface{Name: accountsUser, Methods: fakeAccountUser{f}, Properties: f.getters()}); err != nil {
+			t.Fatal(err)
+		}
+		cached = append(cached, a.path())
 	}
-	if _, err := dbusx.Export(conn, self, dbusx.Interface{Name: accountsUser, Methods: fakeAccountUser{user}, Properties: user.getters()}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := dbusx.Export(conn, "/org/freedesktop/Accounts/User2000", dbusx.Interface{Name: accountsUser, Methods: fakeAccountUser{other}, Properties: other.getters()}); err != nil {
+	if _, err := dbusx.Export(conn, accountsPath, dbusx.Interface{Name: accountsName, Methods: fakeAccounts{manager, self.path(), cached}, Properties: manager.getters()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := dbusx.Own(conn, accountsName); err != nil {
 		t.Fatal(err)
 	}
-	return bus, manager, user
+	return manager, user
 }
 
 func usersFixture(t *testing.T, bus *dbustest.Bus) (*usersPanel, *loop) {
@@ -96,7 +113,8 @@ func usersFixture(t *testing.T, bus *dbustest.Bus) (*usersPanel, *loop) {
 }
 
 func TestAStockAvatarIsOneSetIconFileAndTheNameOneSetRealName(t *testing.T) {
-	bus, _, user := serveAccounts(t, 0)
+	bus := dbustest.Start(t)
+	_, user := serveAccounts(t, bus, alice, bob)
 	p, l := usersFixture(t, bus)
 	l.until("the account", func() bool { return p.realName.Enabled() })
 	if p.realName.Text() != "Alice" || p.admin.Visible() {
@@ -151,7 +169,10 @@ func TestWithoutAccountsServiceTheAvatarIsWrittenToFace(t *testing.T) {
 }
 
 func TestAnAdministratorSeesTheOtherUsers(t *testing.T) {
-	bus, manager, _ := serveAccounts(t, accountAdmin)
+	admin := alice
+	admin.accountType = accountAdmin
+	bus := dbustest.Start(t)
+	manager, _ := serveAccounts(t, bus, admin, bob)
 	p, l := usersFixture(t, bus)
 	l.until("the admin section", func() bool { return p.admin.Visible() && len(treetest.All[*widget.Dropdown](p.admin)) == 2 })
 	bob := dropdownNamed(t, p.admin, "bob")
@@ -163,6 +184,32 @@ func TestAnAdministratorSeesTheOtherUsers(t *testing.T) {
 	if calls, _ := manager.snapshot(); calls[1].method != "DeleteUser" || fmt.Sprint(calls[1].args) != "[2000 false]" {
 		t.Fatalf("%+v", calls)
 	}
+}
+
+func TestTheUsersPageOfARealAccountFitsTheWindow(t *testing.T) {
+	self := fakeAccount{name: "alexanderstage", real: "Alexander Stage", uid: 1000, accountType: accountAdmin, icon: "/var/lib/AccountsService/icons/alexanderstage"}
+	others := []fakeAccount{
+		{name: "margaret.hamilton", real: "Margaret Hamilton-Whitfield", uid: 1001},
+		{name: "jonas.kristoffersen", real: "Jonas Bjørn Kristoffersen", uid: 1002, accountType: accountAdmin},
+		{name: "soeren", real: "Søren Østergaard Nielsen", uid: 1003},
+		{name: "backup-operator", real: "Nightly Backup Operator Account", uid: 1004},
+		{name: "guest", uid: 1005},
+	}
+	bus := dbustest.Start(t)
+	serveAccounts(t, bus, self, others...)
+	enrolled := []string{"right-index-finger", "left-index-finger"}
+	serveFprint(t, bus, true, &enrolled)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	k, _ := systemKit(t, bus)
+	w := newWindow(k, k.store.svc.Config(), func(_ time.Duration, fn func()) { fn() })
+	w.show(usersID)
+	if got := len(treetest.All[*widget.Dropdown](w.page)); got != 1+len(others) {
+		t.Fatalf("the users page lists %d accounts, want %d", got, 1+len(others))
+	}
+	if got := len(treetest.All[*widget.ToggleButton](w.page)); got != len(fingers) {
+		t.Fatalf("the users page offers %d fingers, want %d", got, len(fingers))
+	}
+	assertPageFits(t, w)
 }
 
 func TestAnAvatarCropZoomsAndPansInsideThePicture(t *testing.T) {

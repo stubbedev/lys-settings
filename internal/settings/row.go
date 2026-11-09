@@ -7,6 +7,7 @@ import (
 	"github.com/stubbedev/lys-desktop/shell/widgets"
 	"github.com/stubbedev/lys-desktop/styling"
 	"github.com/stubbedev/lys-lib/render"
+	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
@@ -44,6 +45,7 @@ type kit struct {
 	// background runs blocking work off the loop (a D-Bus query);
 	// nil runs it in place, the tests' synchronous loop.
 	background func(func())
+	systemBus  func() (*dbus.Conn, error)
 	copySecret func(text string) error
 	// overlays shows content on the output named on top of everything,
 	// taking the keys when interactive; nil without a session.

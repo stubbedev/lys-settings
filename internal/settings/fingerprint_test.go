@@ -72,21 +72,27 @@ type fprintRig struct {
 func startFprint(t *testing.T, withDevice bool) *fprintRig {
 	t.Helper()
 	r := &fprintRig{bus: dbustest.Start(t), enrolled: []string{"right-index-finger"}}
-	conn := r.bus.Conn(t)
-	r.manager = &fakeSys{props: map[string]any{}}
-	r.device = &fakeSys{props: map[string]any{"num-enroll-stages": int32(5), "name": "Fake reader", "scan-type": "press"}, conn: conn, path: fakeReader, iface: fprintDevice}
-	if _, err := dbusx.Export(conn, fprintPath, dbusx.Interface{Name: fprintManager, Methods: fakeFprintManager{r.manager, withDevice}}); err != nil {
+	r.manager, r.device = serveFprint(t, r.bus, withDevice, &r.enrolled)
+	t.Setenv("USER", "alice")
+	r.p, r.l = usersFixture(t, r.bus)
+	return r
+}
+
+func serveFprint(t *testing.T, bus *dbustest.Bus, withDevice bool, enrolled *[]string) (manager, device *fakeSys) {
+	t.Helper()
+	conn := bus.Conn(t)
+	manager = &fakeSys{props: map[string]any{}}
+	device = &fakeSys{props: map[string]any{"num-enroll-stages": int32(5), "name": "Fake reader", "scan-type": "press"}, conn: conn, path: fakeReader, iface: fprintDevice}
+	if _, err := dbusx.Export(conn, fprintPath, dbusx.Interface{Name: fprintManager, Methods: fakeFprintManager{manager, withDevice}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbusx.Export(conn, fakeReader, dbusx.Interface{Name: fprintDevice, Methods: fakeFprintDevice{r.device, &r.enrolled}, Properties: r.device.getters()}); err != nil {
+	if _, err := dbusx.Export(conn, fakeReader, dbusx.Interface{Name: fprintDevice, Methods: fakeFprintDevice{device, enrolled}, Properties: device.getters()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := dbusx.Own(conn, fprintName); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("USER", "alice")
-	r.p, r.l = usersFixture(t, r.bus)
-	return r
+	return manager, device
 }
 
 func (r *fprintRig) emit(t *testing.T, result string, done bool) {

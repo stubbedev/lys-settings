@@ -118,10 +118,8 @@ type loop struct {
 
 func systemKit(t *testing.T, bus *dbustest.Bus) (*kit, *loop) {
 	t.Helper()
-	before := connectSystemBus
-	connectSystemBus = func() (*dbus.Conn, error) { return dbus.Connect(bus.Address) }
-	t.Cleanup(func() { connectSystemBus = before })
 	k := testKit(t, "")
+	k.systemBus = func() (*dbus.Conn, error) { return dbus.Connect(bus.Address) }
 	l := &loop{t: t, queue: make(chan func(), 64)}
 	k.invoke = func(fn func()) { l.queue <- fn }
 	return k, l
@@ -275,9 +273,7 @@ func TestCopyMyLayoutSendsLysWMsKeyboardInOneCall(t *testing.T) {
 	t.Cleanup(func() { listLocales = before })
 	k, w, _, _ := wmKit(t, "input:\n  keyboard:\n    layout: us,dk\n    variant: \",nodeadkeys\"\n    options: caps:escape\n    model: pc105\n")
 	k.wm = w
-	beforeBus := connectSystemBus
-	connectSystemBus = func() (*dbus.Conn, error) { return dbus.Connect(bus.Address) }
-	t.Cleanup(func() { connectSystemBus = beforeBus })
+	k.systemBus = func() (*dbus.Conn, error) { return dbus.Connect(bus.Address) }
 	l := &loop{t: t, queue: make(chan func(), 64)}
 	k.invoke = func(fn func()) { l.queue <- fn }
 	footer := regionFooter(k).(*closingBox)

@@ -91,8 +91,6 @@ func (s sysService) watch(changed func(sysProps)) (stop func(), err error) {
 	}, nil
 }
 
-var connectSystemBus = func() (*dbus.Conn, error) { return dbus.ConnectSystemBus() }
-
 func withTimeout[T any](fn func(context.Context) (T, error)) (T, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), sysCallTimeout)
 	defer cancel()

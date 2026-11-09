@@ -92,7 +92,7 @@ type sysOpened struct {
 
 func (p *sysPanel) open(extra func(context.Context, sysService) (any, error), show func(any)) {
 	async(p.k, func() sysOpened {
-		conn, err := connectSystemBus()
+		conn, err := p.k.systemBus()
 		if err != nil {
 			return sysOpened{err: fmt.Errorf("connect to the system bus: %w", err)}
 		}

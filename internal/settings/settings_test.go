@@ -21,6 +21,7 @@ import (
 	"github.com/stubbedev/lys-desktop/styling"
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-lib/sockdir"
+	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/transfer"
 	"github.com/stubbedev/lys-ui/widget"
@@ -51,7 +52,7 @@ func testKit(t *testing.T, configYAML string) *kit {
 	lists := systemLists
 	systemLists = fixedLists()
 	t.Cleanup(func() { systemLists = lists })
-	return &kit{face: face, mono: face, store: store{svc}, invoke: func(fn func()) { fn() }}
+	return &kit{face: face, mono: face, store: store{svc}, invoke: func(fn func()) { fn() }, systemBus: func() (*dbus.Conn, error) { return nil, errors.New("no system bus in the tests") }}
 }
 
 // runtimeFile is runtime.yaml's content.
@@ -2350,15 +2351,20 @@ func TestWindowTakesLysUiParts(t *testing.T) {
 		}
 	}
 
-	const winW, winH = 900, 650
 	for _, sec := range w.sections {
 		for _, p := range sec.pages {
 			w.show(p.id)
-			w.root.Arrange(render.Rect{W: winW, H: winH})
-			if b := w.page.Bounds(); b.X+b.W > winW {
-				t.Errorf("page %s runs to x=%d past the %dpx window", p.id, b.X+b.W, winW)
-			}
+			assertPageFits(t, w)
 		}
+	}
+}
+
+func assertPageFits(t *testing.T, w *window) {
+	t.Helper()
+	const winW, winH = 900, 650
+	w.root.Arrange(render.Rect{W: winW, H: winH})
+	if b := w.page.Bounds(); b.X+b.W > winW {
+		t.Errorf("page %s runs to x=%d past the %dpx window", w.pageID, b.X+b.W, winW)
 	}
 }
 
