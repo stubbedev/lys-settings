@@ -118,6 +118,11 @@ func gapBox(axis widget.Axis) *widget.Box {
 	return widget.NewBox(axis, widget.Current().Spacing, 0)
 }
 
+func cardInsets() render.Insets {
+	th := widget.Current()
+	return render.Insets{Top: th.Padding, Right: 2 * th.Padding, Bottom: th.Padding, Left: 2 * th.Padding}
+}
+
 // browseButton is the outline folder button asking the file chooser,
 // pick getting the chosen path.
 func (k *kit) browseButton(pick func(path string)) *widget.Button {

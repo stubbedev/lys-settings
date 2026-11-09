@@ -279,3 +279,32 @@ func TestTheKeyboardAloneArrangesTheOutputs(t *testing.T) {
 		t.Fatalf("Up moved %s from %d to %d", secondOutput, before, p.draft[p.selected].Y)
 	}
 }
+
+func TestTheArrangementsActionsSitInsetInItsCard(t *testing.T) {
+	r := startDisplays(t)
+	if r.p.status.Visible() {
+		t.Fatalf("the arrangement says %q", r.p.status.Text())
+	}
+	actions := r.p.identify.Parent().(*widget.Box)
+	column := actions.Parent().(*widget.Box).Bounds()
+	canvas, row := r.p.canvas.Bounds(), actions.Bounds()
+	identify, apply := r.p.identify.Bounds(), r.p.apply.Bounds()
+	inset := cardInsets()
+	if got := identify.X - column.X; got != inset.Left {
+		t.Errorf("Identify sits %dpx from the card's left, want %d", got, inset.Left)
+	}
+	if got := column.X + column.W - (apply.X + apply.W); got != inset.Right {
+		t.Errorf("Apply sits %dpx from the card's right, want %d", got, inset.Right)
+	}
+	for name, b := range map[string]render.Rect{"Identify": identify, "Apply": apply} {
+		if got := column.Y + column.H - (b.Y + b.H); got < inset.Bottom {
+			t.Errorf("%s sits %dpx from the card's bottom, want at least %d", name, got, inset.Bottom)
+		}
+	}
+	if canvas.X != column.X || canvas.W != column.W || canvas.Y != column.Y {
+		t.Errorf("the canvas moved to %v inside the card's %v", canvas, column)
+	}
+	if row.X != column.X || row.W != column.W || row.Y != canvas.Y+canvas.H+widget.Current().Spacing || row.Y+row.H != column.Y+column.H {
+		t.Errorf("the action row moved to %v under the canvas %v in the card's %v", row, canvas, column)
+	}
+}

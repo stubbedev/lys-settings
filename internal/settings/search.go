@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
@@ -180,7 +179,7 @@ func (r *searchResults) show(hits []settingEntry) {
 			r.list.Append(widget.NewSeparator(widget.Horizontal), false)
 		}
 		text := widget.NewBox(widget.Column, th.Spacing/4, 0)
-		text.SetPadding(render.Insets{Top: th.Padding, Right: 2 * th.Padding, Bottom: th.Padding, Left: 2 * th.Padding})
+		text.SetPadding(cardInsets())
 		text.Append(r.k.label(h.label, "setting-label"), false)
 		text.Append(r.k.label(h.place, "search-result-place", css.Caption, css.DimLabel), false)
 		if h.description != "" {

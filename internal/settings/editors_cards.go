@@ -11,7 +11,6 @@ import (
 
 	"github.com/stubbedev/lys-desktop/config"
 	"github.com/stubbedev/lys-desktop/i18n"
-	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
@@ -383,8 +382,7 @@ func (c *cardList) appendCard(i int) {
 // by a separator, each inset a padding from the card's edges and two
 // from its sides.
 func sectionCard(header, body *widget.Box, class string) *widget.Box {
-	th := widget.Current()
-	band := render.Insets{Top: th.Padding, Right: 2 * th.Padding, Bottom: th.Padding, Left: 2 * th.Padding}
+	band := cardInsets()
 	header.SetPadding(band)
 	body.SetPadding(band)
 	root := widget.NewBox(widget.Column, 0, 0)
@@ -605,10 +603,9 @@ func (c *cardList) addClash(cd *card, i int) {
 	if c.spec.clashKey == "" {
 		return
 	}
-	th := widget.Current()
 	cd.clash = gapBox(widget.Row)
 	cd.clash.AddClass("card-clash")
-	cd.clash.SetPadding(render.Insets{Top: th.Padding, Right: 2 * th.Padding, Bottom: th.Padding, Left: 2 * th.Padding})
+	cd.clash.SetPadding(cardInsets())
 	cd.clashMsg = c.k.label("", "setting-problem", css.Caption, css.Warning)
 	cd.clashMsg.SetWrap(true)
 	cd.clash.AppendAligned(cd.clashMsg, true, widget.AlignCenter)

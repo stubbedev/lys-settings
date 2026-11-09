@@ -109,6 +109,9 @@ func displaysLead(k *kit) widget.Widget {
 	p.apply = k.button(k.label(t.Get("settings-displays-apply")), p.applyLayout, css.Small, css.SuggestedAction)
 	p.apply.SetEnabled(false)
 	actions := gapBox(widget.Row)
+	inset := cardInsets()
+	inset.Top = 0
+	actions.SetPadding(inset)
 	actions.Append(p.identify, false)
 	actions.Append(widget.NewBox(widget.Row, 0, 0), true)
 	actions.Append(p.apply, false)
