@@ -52,7 +52,7 @@ Some pages also act on the system:
 | Default Apps | Default app per category and file type; the terminal | `mimeapps.list` |
 | Passwords | Filter, reveal and copy keyring items; how many minutes until a reveal asks for the collection password again | Secret Service |
 | Privacy | Per-app portal grants: background and notifications switch on or off, GameMode and realtime are read-only, others can be revoked; the screen-share reminder | xdg-desktop-portal permission store |
-| Greeter | **Apply to login screen** sends the greeter settings to lys-login; on failure, **Apply as administrator** runs it through `pkexec` | `lys-login apply-config` |
+| Greeter | **Apply to login screen** sends the greeter settings to lys-login's display manager, which asks polkit when you are not the logged-in user; the footer says whether they were applied, invalid, not authorized, or the authentication was dismissed | `/run/lys-login/apply.sock` |
 | Displays (`wm-outputs`) | Output layout, tested and applied live | wlr-output-management |
 
 ## Where changes go

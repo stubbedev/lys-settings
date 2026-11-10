@@ -1,16 +1,13 @@
 package settings
 
 import (
-	"bytes"
-	"context"
+	"errors"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
 
 	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-login/dmsocket"
+	"github.com/stubbedev/lys-login/greeterconfig"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 )
@@ -60,75 +57,64 @@ func greeterPage(*config.Config) pageSpec {
 	}
 }
 
-// Greeter apply texts (apply.rs: not localized in Rust either).
 const (
-	greeterApplyLabel      = "Apply to login screen"
-	greeterApplyAdminLabel = "Apply as administrator"
-	greeterApplyFailed     = "Apply failed"
-	greeterApplyDone       = "The next login screen uses these settings."
-	greeterApplyHint       = "Changes the login screen of lys-login's display manager."
+	greeterApplyLabel        = "Apply to login screen"
+	greeterApplyHint         = "Changes the login screen of lys-login's display manager."
+	greeterApplyDone         = "The next login screen uses these settings."
+	greeterApplyFailed       = "Apply failed"
+	greeterApplyNoDaemon     = "lys-login's display manager is not running: apply with sudo lys-login apply-config"
+	greeterApplyInvalid      = "The login screen refused these settings"
+	greeterApplyUnauthorized = "Not authorized to change the login screen"
+	greeterApplyDismissed    = "Authentication was dismissed: the login screen is unchanged"
 )
 
-// greeterApplyMode is who runs lys-login apply-config.
-type greeterApplyMode int
+var loginRuntimeDir = dmsocket.DefaultRuntimeDir
 
-const (
-	// applyAsUser hands the change to lys-login's display manager,
-	// which takes it from the user whose session it runs.
-	applyAsUser greeterApplyMode = iota
-	// applyAsAdmin runs apply-config as root through pkexec, which
-	// writes the system config itself: the way without lys-login's
-	// display manager, behind admin authentication.
-	applyAsAdmin
-)
-
-// greeterApplyTimeout bounds the user's apply-config, one exchange on
-// the display manager's socket; the admin path waits on the person
-// answering the polkit prompt instead.
-const greeterApplyTimeout = 10 * time.Second
-
-// command is apply-config of the staged file in mode.
-func (m greeterApplyMode) command(staged string) (*exec.Cmd, context.CancelFunc) {
-	args := []string{"lys-login", "apply-config", staged}
-	if m == applyAsAdmin {
-		return exec.Command("pkexec", args...), func() {} //nolint:gosec // fixed program, staged path
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), greeterApplyTimeout)
-	return exec.CommandContext(ctx, args[0], args[1:]...), cancel //nolint:gosec // fixed program, staged path
-}
-
-// greeterApplyFooter is build_footer: the button pushing the greeter
-// settings to the login screen, and its hint. A failed apply shows
-// lys-login's reason and offers the administrator's path.
 func greeterApplyFooter(k *kit) widget.Widget {
 	box := gapBox(widget.Column)
 	box.AddClass("settings-section")
 	hint := k.label(greeterApplyHint, "settings-section-title")
 	hint.SetWrap(true)
-	admin := k.button(k.label(greeterApplyAdminLabel), nil)
-	admin.SetVisible(false)
-	apply := func(mode greeterApplyMode) {
-		async(k, func() error { return applyGreeter(k.store, mode) }, func(err error) {
+	apply := func() {
+		async(k, func() error { return applyGreeter(k.store, loginRuntimeDir) }, func(err error) {
 			if err != nil {
-				log.Printf("settings: greeter apply failed: %v", err)
-				hint.SetText(greeterApplyFailed + ": " + err.Error())
-				admin.SetVisible(true)
-				return
+				log.Printf("settings: greeter apply: %v", err)
 			}
-			hint.SetText(greeterApplyDone)
-			admin.SetVisible(false)
+			hint.SetText(greeterApplyOutcome(err))
 		})
 	}
-	admin.OnClick = func() { apply(applyAsAdmin) }
-	box.AppendAligned(k.button(k.label(greeterApplyLabel), func() { apply(applyAsUser) }, css.SuggestedAction), false, widget.AlignStart)
-	box.AppendAligned(admin, false, widget.AlignStart)
+	box.AppendAligned(k.button(k.label(greeterApplyLabel), apply, css.SuggestedAction), false, widget.AlignStart)
 	box.Append(hint, false)
 	return box
 }
 
-// applyGreeter stages the login keys the greeter takes and runs
-// `lys-login apply-config` on them in mode, waiting for its verdict.
-func applyGreeter(s store, mode greeterApplyMode) error {
+func greeterApplyOutcome(err error) string {
+	if err == nil {
+		return greeterApplyDone
+	}
+	if errors.Is(err, dmsocket.ErrNoDaemon) {
+		return greeterApplyNoDaemon
+	}
+	if errors.Is(err, greeterconfig.ErrInvalid) {
+		return greeterApplyInvalid + ": " + err.Error()
+	}
+	refused, ok := errors.AsType[*dmsocket.RefusedError](err)
+	if !ok {
+		return greeterApplyFailed + ": " + err.Error()
+	}
+	switch refused.Refusal {
+	case dmsocket.Invalid:
+		return greeterApplyInvalid + ": " + refused.Reason
+	case dmsocket.Unauthorized:
+		return greeterApplyUnauthorized + ": " + refused.Reason
+	case dmsocket.Dismissed:
+		return greeterApplyDismissed
+	default:
+		return greeterApplyFailed + ": " + refused.Reason
+	}
+}
+
+func applyGreeter(s store, runtimeDir string) error {
 	login := make(map[string]any, len(config.GreeterApplyKeys))
 	for _, key := range config.GreeterApplyKeys {
 		if v := s.value("login." + key); v != nil {
@@ -139,47 +125,16 @@ func applyGreeter(s store, mode greeterApplyMode) error {
 	}
 	body, err := config.YAMLDocument(map[string]any{"login": login})
 	if err != nil {
-		return err
+		return fmt.Errorf("stage the login screen settings: %w", err)
 	}
-	staged, err := stageGreeterApply(body)
+	c, err := greeterconfig.NewChange(body)
 	if err != nil {
-		return err
+		return fmt.Errorf("stage the login screen settings: %w", err)
 	}
-	defer func() {
-		if err := os.Remove(staged); err != nil {
-			log.Printf("settings: greeter apply: %v", err)
-		}
-	}()
-	cmd, cancel := mode.command(staged)
-	defer cancel()
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		if reason := strings.TrimSpace(stderr.String()); reason != "" {
-			return fmt.Errorf("%s: %s", strings.Join(cmd.Args, " "), reason)
-		}
-		return fmt.Errorf("%s: %w", strings.Join(cmd.Args, " "), err)
+	if _, err := dmsocket.Apply.Send(runtimeDir, c); err != nil {
+		return fmt.Errorf("apply the login screen settings: %w", err)
 	}
 	return nil
-}
-
-// stageGreeterApply writes body to a fresh private file for
-// apply-config to read.
-func stageGreeterApply(body string) (string, error) {
-	f, err := os.CreateTemp("", "lys-greeter-apply-*.yaml")
-	if err != nil {
-		return "", fmt.Errorf("stage greeter apply: %w", err)
-	}
-	if _, err := f.WriteString(body); err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-		return "", fmt.Errorf("stage %s: %w", f.Name(), err)
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(f.Name())
-		return "", fmt.Errorf("stage %s: %w", f.Name(), err)
-	}
-	return f.Name(), nil
 }
 
 func idlePage(*config.Config) pageSpec {
