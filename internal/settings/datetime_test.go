@@ -12,6 +12,8 @@ import (
 	"github.com/stubbedev/lys-desktop/shell/treetest"
 	"github.com/stubbedev/lys-lib/dbustest"
 	"github.com/stubbedev/lys-lib/dbusx"
+	"github.com/stubbedev/lys-lib/glibclocale"
+	"github.com/stubbedev/lys-lib/glibclocale/glibclocaletest"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/widget"
 )
@@ -210,13 +212,36 @@ func TestEachDateControlIsOneInteractiveCallAndARefusalRevertsIt(t *testing.T) {
 	}
 }
 
+func useLocales(t *testing.T, src glibclocale.Source) {
+	before := localeSource
+	localeSource = src
+	t.Cleanup(func() { localeSource = before })
+}
+
+func TestWithoutLocaleDataTheRegionPageSaysWhy(t *testing.T) {
+	bus := dbustest.Start(t)
+	lc := &fakeSys{props: map[string]any{"Locale": []string{"LANG=en_US.UTF-8"}, "VConsoleKeymap": "us", "X11Layout": "us", "X11Model": "", "X11Variant": "", "X11Options": ""}}
+	serveFake(t, bus, localeName, localePath, lc, fakeLocaled{lc})
+	none := filepath.Join(t.TempDir(), "none")
+	useLocales(t, glibclocale.NewSource(filepath.Join(none, "locale-archive"), none))
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	k, l := systemKit(t, bus)
+	footer := regionFooter(k).(*closingBox)
+	t.Cleanup(footer.close)
+	l.until("the system controls", func() bool { return len(treetest.All[*widget.Dropdown](footer)) == len(userFormats)+1 })
+	for _, lbl := range treetest.All[*widget.Label](footer) {
+		if strings.Contains(lbl.Text(), `no locale "en_US.UTF-8"`) && strings.Contains(lbl.Text(), none) {
+			return
+		}
+	}
+	t.Fatal("the preview does not say the system has no data for the language")
+}
+
 func TestTheFormatsWriteLocaleConfAndChangeThePreview(t *testing.T) {
 	bus := dbustest.Start(t)
 	lc := &fakeSys{props: map[string]any{"Locale": []string{"LANG=en_US.UTF-8"}, "VConsoleKeymap": "us", "X11Layout": "us", "X11Model": "", "X11Variant": "", "X11Options": ""}}
 	serveFake(t, bus, localeName, localePath, lc, fakeLocaled{lc})
-	before := listLocales
-	listLocales = func() ([]string, error) { return []string{"en_GB.UTF-8", "en_US.UTF-8"}, nil }
-	t.Cleanup(func() { listLocales = before })
+	useLocales(t, glibclocale.NewSource("", glibclocaletest.Dirs(t)))
 	config := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", config)
 	put(t, filepath.Join(config, "locale.conf"), "# mine\nLC_NUMERIC=en_US.UTF-8\n")
@@ -236,23 +261,23 @@ func TestTheFormatsWriteLocaleConfAndChangeThePreview(t *testing.T) {
 	if !strings.Contains(first, "$1,234.50") {
 		t.Fatalf("the preview %q is not the language's money", first)
 	}
-	dropdownNamed(t, footer, "LC_MONETARY").SetSelected(1)
-	if got := fileText(t, filepath.Join(config, "locale.conf")); got != "# mine\nLC_NUMERIC=en_US.UTF-8\nLC_MONETARY=en_GB.UTF-8\n" {
+	dropdownNamed(t, footer, "LC_MONETARY").SetSelected(1 + slices.Index(glibclocaletest.Names, "en_GB.utf8"))
+	if got := fileText(t, filepath.Join(config, "locale.conf")); got != "# mine\nLC_NUMERIC=en_US.UTF-8\nLC_MONETARY=en_GB.utf8\n" {
 		t.Fatalf("locale.conf %q", got)
 	}
 	if got := preview(); !strings.Contains(got, "£1,234.50") {
 		t.Fatalf("the preview did not follow LC_MONETARY: %q", got)
 	}
 	dropdownNamed(t, footer, "LC_NUMERIC").SetSelected(0)
-	if got := fileText(t, filepath.Join(config, "locale.conf")); got != "# mine\nLC_MONETARY=en_GB.UTF-8\n" {
+	if got := fileText(t, filepath.Join(config, "locale.conf")); got != "# mine\nLC_MONETARY=en_GB.utf8\n" {
 		t.Fatalf("locale.conf %q after the same-as-language choice", got)
 	}
 	if calls, _ := lc.snapshot(); len(calls) != 0 {
 		t.Fatalf("the user's formats called localed: %+v", calls)
 	}
-	dropdownNamed(t, footer, "Language").SetSelected(0)
+	dropdownNamed(t, footer, "Language").SetSelected(slices.Index(glibclocaletest.Names, "en_GB.utf8"))
 	l.until("SetLocale", func() bool { c, _ := lc.snapshot(); return len(c) == 1 })
-	if calls, _ := lc.snapshot(); calls[0].method != "SetLocale" || fmt.Sprint(calls[0].args) != "[[LANG=en_GB.UTF-8] true]" {
+	if calls, _ := lc.snapshot(); calls[0].method != "SetLocale" || fmt.Sprint(calls[0].args) != "[[LANG=en_GB.utf8] true]" {
 		t.Fatalf("%+v", calls)
 	}
 	keymap := treetest.First[*widget.Entry](t, footer)
@@ -268,9 +293,7 @@ func TestCopyMyLayoutSendsLysWMsKeyboardInOneCall(t *testing.T) {
 	bus := dbustest.Start(t)
 	lc := &fakeSys{props: map[string]any{"Locale": []string{"LANG=en_US.UTF-8"}, "VConsoleKeymap": "us", "X11Layout": "us", "X11Model": "", "X11Variant": "", "X11Options": ""}}
 	serveFake(t, bus, localeName, localePath, lc, fakeLocaled{lc})
-	before := listLocales
-	listLocales = func() ([]string, error) { return []string{"en_US.UTF-8"}, nil }
-	t.Cleanup(func() { listLocales = before })
+	useLocales(t, glibclocale.NewSource("", glibclocaletest.Dirs(t)))
 	k, w, _, _ := wmKit(t, "input:\n  keyboard:\n    layout: us,dk\n    variant: \",nodeadkeys\"\n    options: caps:escape\n    model: pc105\n")
 	k.wm = w
 	k.systemBus = func() (*dbus.Conn, error) { return dbus.Connect(bus.Address) }

@@ -1,14 +1,13 @@
 package settings
 
 import (
-	"bufio"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,11 +17,11 @@ import (
 	"github.com/stubbedev/lys-desktop/i18n"
 	"github.com/stubbedev/lys-desktop/strftime"
 	"github.com/stubbedev/lys-lib/atomicfile"
+	"github.com/stubbedev/lys-lib/glibclocale"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
-	"github.com/stubbedev/lys-settings/internal/clocale"
 	"github.com/stubbedev/lys-settings/internal/locale"
 	"github.com/stubbedev/lys-settings/internal/wmconfig"
 )
@@ -40,6 +39,9 @@ const (
 	clock12          = "%a %b %d %I:%M %p"
 	localeConfName   = "locale.conf"
 	interactive      = true
+	previewNumber    = 123456789
+	previewPrice     = 123450
+	previewScale     = 2
 )
 
 var userFormats = []string{"LC_TIME", "LC_NUMERIC", "LC_MONETARY", "LC_MEASUREMENT", "LC_PAPER"}
@@ -303,22 +305,43 @@ func fixedChoices(items []choice) lister {
 	return func() []choice { return slices.Clone(items) }
 }
 
-var listLocales = func() ([]string, error) {
-	out, err := exec.Command("locale", "-a").Output()
+var localeSource = glibclocale.System(systemHost.getenv)
+
+func listLocales() ([]string, error) {
+	names, err := localeSource.List()
 	if err != nil {
-		return nil, fmt.Errorf("list the system's locales with locale -a: %w", err)
+		return nil, err
 	}
-	var names []string
-	sc := bufio.NewScanner(strings.NewReader(string(out)))
-	for sc.Scan() {
-		name := strings.TrimSpace(sc.Text())
-		if name == "" || name == "C" || name == "POSIX" || strings.HasPrefix(name, "C.") {
-			continue
-		}
-		names = append(names, name)
+	return slices.DeleteFunc(names, func(name string) bool {
+		return name == "C" || name == "POSIX" || strings.HasPrefix(name, "C.")
+	}), nil
+}
+
+func localeIndex(names []string, name string) int {
+	want := glibclocale.Normalize(name)
+	return slices.IndexFunc(names, func(n string) bool { return glibclocale.Normalize(n) == want })
+}
+
+type formatsPreview struct{ date, number, price string }
+
+func previewFormats(timeLocale, numericLocale, monetaryLocale string, at time.Time) (formatsPreview, error) {
+	lt, err := localeSource.Time(timeLocale)
+	if err != nil {
+		return formatsPreview{}, err
 	}
-	slices.Sort(names)
-	return names, nil
+	date, err := lt.Format("%c", at)
+	if err != nil {
+		return formatsPreview{}, err
+	}
+	numeric, err := localeSource.Numeric(numericLocale)
+	if err != nil {
+		return formatsPreview{}, err
+	}
+	monetary, err := localeSource.Monetary(monetaryLocale)
+	if err != nil {
+		return formatsPreview{}, err
+	}
+	return formatsPreview{date: date, number: numeric.Format(previewNumber, previewScale), price: monetary.Format(previewPrice, previewScale, numeric)}, nil
 }
 
 func localeConfPath(h host) string {
@@ -407,18 +430,13 @@ func regionFooter(k *kit) widget.Widget {
 			formatsProblem.SetVisible(true)
 			return
 		}
-		pick := func(key string) string {
-			if v := values[key]; v != "" {
-				return v
-			}
-			return lang()
-		}
-		pv, err := clocale.Format(clocale.Formats{Time: pick("LC_TIME"), Numeric: pick("LC_NUMERIC"), Monetary: pick("LC_MONETARY")}, time.Now())
+		pick := func(key string) string { return cmp.Or(values[key], lang(), "C") }
+		pv, err := previewFormats(pick("LC_TIME"), pick("LC_NUMERIC"), pick("LC_MONETARY"), time.Now())
 		if err != nil {
 			preview.SetText(err.Error())
 			return
 		}
-		preview.SetText(t.Get("settings-region-preview", i18n.Str("date", pv.Date), i18n.Str("number", pv.Number), i18n.Str("price", pv.Price)))
+		preview.SetText(t.Get("settings-region-preview", i18n.Str("date", pv.date), i18n.Str("number", pv.number), i18n.Str("price", pv.price)))
 	}
 	async(k, func() localesListing {
 		names, err := listLocales()
@@ -436,7 +454,7 @@ func regionFooter(k *kit) widget.Widget {
 		rows := widget.NewItemGroup()
 		labels := append([]string{t.Get("settings-region-same")}, l.names...)
 		for _, key := range userFormats {
-			dd := widget.NewDropdown(k.face, k.textPx(), labels, max(slices.Index(l.names, values[key])+1, 0))
+			dd := widget.NewDropdown(k.face, k.textPx(), labels, max(localeIndex(l.names, values[key])+1, 0))
 			dd.SetAccessibleName(key)
 			dd.OnSelect = func(i int) {
 				value := ""
@@ -457,7 +475,7 @@ func regionFooter(k *kit) widget.Widget {
 	})
 	p.open(func(context.Context, sysService) (any, error) { return listLocales() }, func(extra any) {
 		names, _ := extra.([]string)
-		language := widget.NewDropdown(k.face, k.textPx(), names, max(slices.Index(names, lang()), 0))
+		language := widget.NewDropdown(k.face, k.textPx(), names, max(localeIndex(names, lang()), 0))
 		language.SetAccessibleName(t.Get("settings-region-language"))
 		syncing := false
 		language.OnSelect = func(i int) {
@@ -483,7 +501,7 @@ func regionFooter(k *kit) widget.Widget {
 		refresh := func() {
 			syncing = true
 			defer func() { syncing = false }()
-			if i := slices.Index(names, lang()); i >= 0 && language.Selected() != i {
+			if i := localeIndex(names, lang()); i >= 0 && language.Selected() != i {
 				language.SetSelected(i)
 			}
 			if keymap.Text() != p.props.str("VConsoleKeymap") {
