@@ -3,9 +3,8 @@ module github.com/stubbedev/lys-settings
 go 1.27.3
 
 require (
-	github.com/ebitengine/purego v0.11.2
 	github.com/stubbedev/lys-desktop v0.0.3
-	github.com/stubbedev/lys-lib v0.3.15
+	github.com/stubbedev/lys-lib v0.3.16-0.20261110160804-16a3c7a7cca2
 	github.com/stubbedev/lys-secrets v0.3.16
 	github.com/stubbedev/lys-ui v0.2.19
 	go.yaml.in/yaml/v3 v3.0.6
@@ -14,6 +13,7 @@ require (
 )
 
 require (
+	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/jfreymuth/pulse v0.1.3 // indirect
 	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
