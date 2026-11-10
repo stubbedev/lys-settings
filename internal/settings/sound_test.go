@@ -10,10 +10,10 @@ import (
 
 	"github.com/stubbedev/lys-desktop/i18n"
 	"github.com/stubbedev/lys-desktop/service/pulse"
-	"github.com/stubbedev/lys-desktop/service/pulse/native"
-	"github.com/stubbedev/lys-desktop/service/pulse/pulsetest"
 	"github.com/stubbedev/lys-desktop/shell/apptheme"
 	"github.com/stubbedev/lys-desktop/shell/treetest"
+	"github.com/stubbedev/lys-lib/pulse/native"
+	"github.com/stubbedev/lys-lib/pulse/pulsetest"
 	"github.com/stubbedev/lys-lib/render"
 	"github.com/stubbedev/lys-ui/widget"
 

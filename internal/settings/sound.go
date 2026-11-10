@@ -12,8 +12,8 @@ import (
 	"github.com/stubbedev/lys-desktop/config"
 	"github.com/stubbedev/lys-desktop/i18n"
 	"github.com/stubbedev/lys-desktop/service/pulse"
-	"github.com/stubbedev/lys-desktop/service/pulse/native"
 	"github.com/stubbedev/lys-desktop/shell/widgets"
+	"github.com/stubbedev/lys-lib/pulse/native"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
 
