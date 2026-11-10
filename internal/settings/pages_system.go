@@ -6,10 +6,13 @@ import (
 	"log"
 
 	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/i18n"
 	"github.com/stubbedev/lys-login/dmsocket"
 	"github.com/stubbedev/lys-login/greeterconfig"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 // generalPage is pages/general.
@@ -58,14 +61,14 @@ func greeterPage(*config.Config) pageSpec {
 }
 
 const (
-	greeterApplyLabel        = "Apply to login screen"
-	greeterApplyHint         = "Changes the login screen of lys-login's display manager."
-	greeterApplyDone         = "The next login screen uses these settings."
-	greeterApplyFailed       = "Apply failed"
-	greeterApplyNoDaemon     = "lys-login's display manager is not running: apply with sudo lys-login apply-config"
-	greeterApplyInvalid      = "The login screen refused these settings"
-	greeterApplyUnauthorized = "Not authorized to change the login screen"
-	greeterApplyDismissed    = "Authentication was dismissed: the login screen is unchanged"
+	greeterApplyLabel        = "settings-greeter-apply"
+	greeterApplyHint         = "settings-greeter-apply-hint"
+	greeterApplyDone         = "settings-greeter-apply-done"
+	greeterApplyFailed       = "settings-greeter-apply-failed"
+	greeterApplyNoDaemon     = "settings-greeter-apply-no-daemon"
+	greeterApplyInvalid      = "settings-greeter-apply-invalid"
+	greeterApplyUnauthorized = "settings-greeter-apply-unauthorized"
+	greeterApplyDismissed    = "settings-greeter-apply-dismissed"
 )
 
 var loginRuntimeDir = dmsocket.DefaultRuntimeDir
@@ -73,44 +76,46 @@ var loginRuntimeDir = dmsocket.DefaultRuntimeDir
 func greeterApplyFooter(k *kit) widget.Widget {
 	box := gapBox(widget.Column)
 	box.AddClass("settings-section")
-	hint := k.label(greeterApplyHint, "settings-section-title")
+	t := locale.T()
+	hint := k.label(t.Get(greeterApplyHint), "settings-section-title")
 	hint.SetWrap(true)
 	apply := func() {
 		async(k, func() error { return applyGreeter(k.store, loginRuntimeDir) }, func(err error) {
 			if err != nil {
 				log.Printf("settings: greeter apply: %v", err)
 			}
-			hint.SetText(greeterApplyOutcome(err))
+			hint.SetText(greeterApplyOutcome(t, err))
 		})
 	}
-	box.AppendAligned(k.button(k.label(greeterApplyLabel), apply, css.SuggestedAction), false, widget.AlignStart)
+	box.AppendAligned(k.button(k.label(t.Get(greeterApplyLabel)), apply, css.SuggestedAction), false, widget.AlignStart)
 	box.Append(hint, false)
 	return box
 }
 
-func greeterApplyOutcome(err error) string {
+func greeterApplyOutcome(t *i18n.Loader, err error) string {
 	if err == nil {
-		return greeterApplyDone
+		return t.Get(greeterApplyDone)
 	}
 	if errors.Is(err, dmsocket.ErrNoDaemon) {
-		return greeterApplyNoDaemon
+		return t.Get(greeterApplyNoDaemon)
 	}
+	because := func(id, reason string) string { return t.Get(id, i18n.Str("reason", reason)) }
 	if errors.Is(err, greeterconfig.ErrInvalid) {
-		return greeterApplyInvalid + ": " + err.Error()
+		return because(greeterApplyInvalid, err.Error())
 	}
 	refused, ok := errors.AsType[*dmsocket.RefusedError](err)
 	if !ok {
-		return greeterApplyFailed + ": " + err.Error()
+		return because(greeterApplyFailed, err.Error())
 	}
 	switch refused.Refusal {
 	case dmsocket.Invalid:
-		return greeterApplyInvalid + ": " + refused.Reason
+		return because(greeterApplyInvalid, refused.Reason)
 	case dmsocket.Unauthorized:
-		return greeterApplyUnauthorized + ": " + refused.Reason
+		return because(greeterApplyUnauthorized, refused.Reason)
 	case dmsocket.Dismissed:
-		return greeterApplyDismissed
+		return t.Get(greeterApplyDismissed)
 	default:
-		return greeterApplyFailed + ": " + refused.Reason
+		return because(greeterApplyFailed, refused.Reason)
 	}
 }
 

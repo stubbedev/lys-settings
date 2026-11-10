@@ -2,6 +2,8 @@ package settings
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,10 +12,14 @@ import (
 	"testing"
 
 	"github.com/stubbedev/lys-desktop/config"
+	"github.com/stubbedev/lys-desktop/i18n"
+	"github.com/stubbedev/lys-desktop/shell/treetest"
 	"github.com/stubbedev/lys-lib/sockdir"
 	"github.com/stubbedev/lys-login/dmsocket"
 	"github.com/stubbedev/lys-login/greeterconfig"
 	"github.com/stubbedev/lys-ui/widget"
+
+	"github.com/stubbedev/lys-settings/internal/locale"
 )
 
 type fakeDaemon struct {
@@ -133,7 +139,7 @@ func greeterApplyButton(t *testing.T, footer *widget.Box) *widget.Button {
 	return buttons[0]
 }
 
-func clickGreeterApply(t *testing.T, runtimeDir string) string {
+func clickGreeterApply(t *testing.T, runtimeDir string) []string {
 	t.Helper()
 	k := testKit(t, "")
 	saved := loginRuntimeDir
@@ -141,28 +147,38 @@ func clickGreeterApply(t *testing.T, runtimeDir string) string {
 	t.Cleanup(func() { loginRuntimeDir = saved })
 	footer := greeterApplyFooter(k).(*widget.Box)
 	greeterApplyButton(t, footer).ClickAt(widget.Point{})
-	return widget.DumpTree(footer, nil)
+	return treetest.Labels(footer)
 }
 
 func TestGreeterApplyNamesWhatHappened(t *testing.T) {
 	noPrograms(t)
+	tr := locale.T()
 	for _, c := range []struct {
 		name   string
 		answer dmsocket.Reply
 		want   string
 	}{
-		{"applied", dmsocket.Answer("/etc/lys-shell/runtime.yaml", nil), greeterApplyDone},
-		{"invalid", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Invalid, "no recognised login screen keys")), greeterApplyInvalid + ": no recognised login screen keys"},
-		{"not authorized", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Unauthorized, "polkit does not authorize uid 1000")), greeterApplyUnauthorized + ": polkit does not authorize uid 1000"},
-		{"dismissed", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Dismissed, "the authentication was dismissed")), greeterApplyDismissed},
-		{"failed", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Failed, "write /etc/lys-shell/runtime.yaml: disk full")), greeterApplyFailed + ": write /etc/lys-shell/runtime.yaml: disk full"},
+		{"applied", dmsocket.Answer("/etc/lys-shell/runtime.yaml", nil), tr.Get(greeterApplyDone)},
+		{
+			"invalid", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Invalid, "no recognised login screen keys")),
+			tr.Get(greeterApplyInvalid, i18n.Str("reason", "no recognised login screen keys")),
+		},
+		{
+			"not authorized", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Unauthorized, "polkit does not authorize uid 1000")),
+			tr.Get(greeterApplyUnauthorized, i18n.Str("reason", "polkit does not authorize uid 1000")),
+		},
+		{"dismissed", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Dismissed, "the authentication was dismissed")), tr.Get(greeterApplyDismissed)},
+		{
+			"failed", dmsocket.Answer("", dmsocket.Refuse(dmsocket.Failed, "write /etc/lys-shell/runtime.yaml: disk full")),
+			tr.Get(greeterApplyFailed, i18n.Str("reason", "write /etc/lys-shell/runtime.yaml: disk full")),
+		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir, daemon := serveFakeDaemon(t, c.answer)
-			dump := clickGreeterApply(t, dir)
+			labels := clickGreeterApply(t, dir)
 			daemon.request(t)
-			if !strings.Contains(dump, c.want) {
-				t.Errorf("the footer shows:\n%s\nwant %q", dump, c.want)
+			if want := []string{tr.Get(greeterApplyLabel), c.want}; !slices.Equal(labels, want) {
+				t.Errorf("the footer shows %q, want %q", labels, want)
 			}
 		})
 	}
@@ -170,26 +186,85 @@ func TestGreeterApplyNamesWhatHappened(t *testing.T) {
 
 func TestGreeterApplyWithoutTheDisplayManager(t *testing.T) {
 	noPrograms(t)
-	if dump := clickGreeterApply(t, sockdir.Dir(t)); !strings.Contains(dump, greeterApplyNoDaemon) {
-		t.Errorf("without a daemon the footer shows:\n%s", dump)
+	tr := locale.T()
+	labels := clickGreeterApply(t, sockdir.Dir(t))
+	if want := []string{tr.Get(greeterApplyLabel), tr.Get(greeterApplyNoDaemon)}; !slices.Equal(labels, want) {
+		t.Errorf("without a daemon the footer shows %q, want %q", labels, want)
 	}
 }
 
-func TestGreeterApplyOutcomesAreDistinct(t *testing.T) {
-	seen := map[string]bool{}
-	for _, err := range []error{
-		nil,
-		dmsocket.ErrNoDaemon,
-		greeterconfig.ErrInvalid,
-		dmsocket.Refuse(dmsocket.Invalid, "x"),
-		dmsocket.Refuse(dmsocket.Unauthorized, "x"),
-		dmsocket.Refuse(dmsocket.Dismissed, "x"),
-		dmsocket.Refuse(dmsocket.Failed, "x"),
-	} {
-		prefix, _, _ := strings.Cut(greeterApplyOutcome(err), ":")
-		seen[prefix] = true
+func TestGreeterApplyFooterStartsWithWhatApplyingChanges(t *testing.T) {
+	tr := locale.T()
+	labels := treetest.Labels(greeterApplyFooter(testKit(t, "")))
+	if want := []string{tr.Get(greeterApplyLabel), tr.Get(greeterApplyHint)}; !slices.Equal(labels, want) {
+		t.Errorf("the footer shows %q, want %q", labels, want)
 	}
-	if len(seen) != 6 {
-		t.Errorf("outcomes %v, want six the person can tell apart (invalid twice)", seen)
+}
+
+func TestGreeterApplyOutcomesReadApartInEveryLanguage(t *testing.T) {
+	const reason = "the daemon's own words"
+	invalid := fmt.Errorf("%w: %s", greeterconfig.ErrInvalid, reason)
+	outcomes := []struct {
+		name   string
+		err    error
+		id     string
+		reason string
+	}{
+		{"applied", nil, greeterApplyDone, ""},
+		{"no daemon", dmsocket.ErrNoDaemon, greeterApplyNoDaemon, ""},
+		{"invalid before it is sent", invalid, greeterApplyInvalid, invalid.Error()},
+		{"invalid", dmsocket.Refuse(dmsocket.Invalid, reason), greeterApplyInvalid, reason},
+		{"not authorized", dmsocket.Refuse(dmsocket.Unauthorized, reason), greeterApplyUnauthorized, reason},
+		{"dismissed", dmsocket.Refuse(dmsocket.Dismissed, reason), greeterApplyDismissed, ""},
+		{"failed", dmsocket.Refuse(dmsocket.Failed, reason), greeterApplyFailed, reason},
+		{"failed before an answer", errors.New(reason), greeterApplyFailed, reason},
+	}
+	ids := []string{
+		greeterApplyLabel, greeterApplyHint, greeterApplyDone, greeterApplyNoDaemon,
+		greeterApplyInvalid, greeterApplyUnauthorized, greeterApplyDismissed, greeterApplyFailed,
+	}
+	read := func(lang i18n.LangID) []string {
+		tr, err := i18n.Select(locale.Assets(), []i18n.LangID{lang})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range outcomes {
+			got := greeterApplyOutcome(tr, c.err)
+			if want := tr.Get(c.id, i18n.Str("reason", c.reason)); got != want {
+				t.Errorf("%s: %s says %q, want the %s message %q", lang, c.name, got, c.id, want)
+			}
+			if carries := strings.Contains(got, reason); carries != (c.reason != "") {
+				t.Errorf("%s: %s says %q, carrying the reason = %v", lang, c.name, got, carries)
+			}
+		}
+		texts := make([]string, len(ids))
+		for i, id := range ids {
+			if !tr.Has(id) {
+				t.Errorf("%s: no %s", lang, id)
+			}
+			texts[i] = tr.Get(id, i18n.Str("reason", reason))
+			if same := slices.Index(texts[:i], texts[i]); same >= 0 {
+				t.Errorf("%s: %s and %s both read %q", lang, ids[same], id, texts[i])
+			}
+		}
+		return texts
+	}
+	langs, err := locale.Assets().Available()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(langs) < 2 {
+		t.Fatalf("languages %v, want the fallback and a translation at least", langs)
+	}
+	fallback := read(i18n.Fallback)
+	for _, lang := range langs {
+		if lang.Equal(i18n.Fallback) {
+			continue
+		}
+		for i, text := range read(lang) {
+			if text == fallback[i] {
+				t.Errorf("%s: %s is the %s text, not a translation: %q", lang, ids[i], i18n.Fallback, text)
+			}
+		}
 	}
 }
