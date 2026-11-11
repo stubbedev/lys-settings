@@ -12,6 +12,7 @@ import (
 	"github.com/stubbedev/lys-desktop/desktopentry"
 	"github.com/stubbedev/lys-desktop/portal/permissions"
 	"github.com/stubbedev/lys-desktop/settingspage"
+	"github.com/stubbedev/lys-lib/dbusx"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
@@ -34,7 +35,7 @@ type grantStore interface {
 	List(ctx context.Context) ([]permissions.App, error)
 	Revoke(ctx context.Context, app string, table permissions.Table, id string) (int, error)
 	Set(ctx context.Context, app string, table permissions.Table, id string, perms []string) error
-	Watch(changed func()) (stop func(), err error)
+	Watch(ctx context.Context, changed func(), failed func(error)) (*dbusx.Watch, error)
 }
 
 const grantsTimeout = 5 * time.Second
@@ -72,7 +73,7 @@ type grantsList struct {
 	k         *kit
 	store     grantStore
 	release   func()
-	stop      func()
+	watch     *dbusx.Watch
 	rows      *widget.Box
 	view      *widget.Dropdown
 	apps      []permissions.App
@@ -108,19 +109,23 @@ func grantsFooter(k *kit) widget.Widget {
 		return l
 	}
 	l.store, l.release = store, release
-	if stop, err := store.Watch(func() { k.invoke(l.reload) }); err != nil {
+	watch, err := store.Watch(context.Background(), func() { k.invoke(l.reload) }, func(err error) {
+		log.Printf("settings: a permission store signal: %v", err)
+	})
+	if err != nil {
 		log.Printf("settings: follow the permission store: %v", err)
-	} else {
-		l.stop = stop
 	}
+	l.watch = watch
 	l.reload()
 	return l
 }
 
 func (l *grantsList) close() {
-	if l.stop != nil {
-		l.stop()
-		l.stop = nil
+	if l.watch != nil {
+		if err := l.watch.Stop(); err != nil {
+			log.Printf("settings: stop following the permission store: %v", err)
+		}
+		l.watch = nil
 	}
 	if l.release != nil {
 		l.release()

@@ -33,6 +33,7 @@ type revoked struct {
 // fakeGrants is the grants the page lists; a revoke takes the grant out
 // unless failRevoke is set, and listErr fails every listing.
 type fakeGrants struct {
+	conn       *dbus.Conn
 	apps       []permissions.App
 	revokes    []revoked
 	sets       []string
@@ -41,8 +42,20 @@ type fakeGrants struct {
 	opened     int
 	closed     int
 	lists      int
-	watchers   int
+	watches    []*dbusx.Watch
 	changed    func()
+}
+
+func (f *fakeGrants) watching() int {
+	n := 0
+	for _, w := range f.watches {
+		select {
+		case <-w.Done():
+		default:
+			n++
+		}
+	}
+	return n
 }
 
 func (f *fakeGrants) List(context.Context) ([]permissions.App, error) {
@@ -55,10 +68,15 @@ func (f *fakeGrants) Set(_ context.Context, app string, table permissions.Table,
 	return nil
 }
 
-func (f *fakeGrants) Watch(changed func()) (func(), error) {
-	f.watchers++
+func (f *fakeGrants) Watch(ctx context.Context, changed func(), failed func(error)) (*dbusx.Watch, error) {
+	w, err := dbusx.WatchSignals(ctx, f.conn, dbusx.FromBus(), failed,
+		dbusx.OnOwnerChange("org.example.Unowned", func(string, string, dbus.Sequence) error { return nil }))
+	if err != nil {
+		return nil, err
+	}
+	f.watches = append(f.watches, w)
 	f.changed = changed
-	return func() { f.watchers--; f.changed = nil }, nil
+	return w, nil
 }
 
 func (f *fakeGrants) Revoke(_ context.Context, app string, table permissions.Table, id string) (int, error) {
@@ -78,6 +96,7 @@ func (f *fakeGrants) Revoke(_ context.Context, app string, table permissions.Tab
 
 func serveGrants(t *testing.T, f *fakeGrants) {
 	t.Helper()
+	f.conn = dbustest.Start(t).Conn(t)
 	open := openGrants
 	openGrants = func() (grantStore, func(), error) {
 		f.opened++
@@ -143,8 +162,8 @@ func TestPrivacyPageListsAndRevokesGrants(t *testing.T) {
 		t.Error("the revoked grant kept its button")
 	}
 	footer.(*grantsList).close()
-	if f.opened != 1 || f.closed != 1 || f.watchers != 0 {
-		t.Errorf("opened the grants %d times, closed them %d, %d watchers left; want one connection for the page's life", f.opened, f.closed, f.watchers)
+	if f.opened != 1 || f.closed != 1 || len(f.watches) != 1 || f.watching() != 0 {
+		t.Errorf("opened the grants %d times, closed them %d, %d of %d watches left; want one connection and one watch for the page's life", f.opened, f.closed, f.watching(), len(f.watches))
 	}
 }
 
@@ -220,7 +239,7 @@ func TestBackgroundAndNotificationsAreSwitchesAndTheStoreIsFollowed(t *testing.T
 		t.Fatalf("a Changed signal listed %d times, want once", f.lists-lists)
 	}
 	footer.close()
-	if f.changed != nil {
+	if f.watching() != 0 {
 		t.Fatal("a hidden page still follows the store")
 	}
 	if f.lists != lists+1 {

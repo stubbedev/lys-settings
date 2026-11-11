@@ -10,6 +10,7 @@ import (
 
 	"github.com/stubbedev/lys-desktop/config"
 	"github.com/stubbedev/lys-desktop/i18n"
+	"github.com/stubbedev/lys-lib/dbusx"
 	"github.com/stubbedev/lys-lib/intconv"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-secrets/client"
@@ -86,7 +87,7 @@ type passwordsPanel struct {
 	k          *kit
 	c          *client.Client
 	release    func()
-	stop       func()
+	watch      *dbusx.Watch
 	colls      []client.Collection
 	coll       dbus.ObjectPath
 	paths      []dbus.ObjectPath
@@ -222,15 +223,23 @@ func (p *passwordsPanel) refreshLock() {
 
 func (p *passwordsPanel) close() {
 	p.hideSecret()
-	if p.stop != nil {
-		p.stop()
-		p.stop = nil
-	}
+	p.unwatch()
 	if p.release != nil {
 		p.release()
 		p.release = nil
 	}
 	p.c = nil
+}
+
+func (p *passwordsPanel) unwatch() {
+	if p.watch == nil {
+		return
+	}
+	err := p.watch.Stop()
+	p.watch = nil
+	if err != nil {
+		p.fail(err)
+	}
 }
 
 func (p *passwordsPanel) fail(err error) {
@@ -241,19 +250,18 @@ func (p *passwordsPanel) fail(err error) {
 }
 
 func (p *passwordsPanel) pick(coll dbus.ObjectPath) {
-	if p.stop != nil {
-		p.stop()
-		p.stop = nil
-	}
+	p.unwatch()
 	p.coll = coll
 	p.hideSecret()
 	p.expanded = ""
 	p.refreshLock()
-	if stop, err := p.c.WatchItems(coll, func() { p.k.invoke(p.reload) }); err != nil {
+	watch, err := p.c.WatchItems(context.Background(), coll, func() { p.k.invoke(p.reload) }, func(err error) {
+		p.k.invoke(func() { p.fail(err) })
+	})
+	if err != nil {
 		p.fail(err)
-	} else {
-		p.stop = stop
 	}
+	p.watch = watch
 	p.load(false)
 }
 
