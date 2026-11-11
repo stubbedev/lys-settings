@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 
+	"github.com/stubbedev/lys-lib/dbusx"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/widget"
 	"github.com/stubbedev/lys-ui/widget/css"
@@ -19,7 +21,6 @@ const (
 	fprintManager   = fprintName + ".Manager"
 	fprintDevice    = fprintName + ".Device"
 	fprintPath      = dbus.ObjectPath("/net/reactivated/Fprint/Manager")
-	enrollStatus    = "EnrollStatus"
 	errNoEnrolled   = fprintName + ".Error.NoEnrolledPrints"
 	errPermission   = fprintName + ".Error.PermissionDenied"
 	statusStage     = "enroll-stage-passed"
@@ -76,31 +77,23 @@ func (f *fprint) stages(ctx context.Context) (int, error) {
 	return int(n), nil
 }
 
-func (f *fprint) watch(status func(result string, done bool)) (func(), error) {
-	match := []dbus.MatchOption{dbus.WithMatchObjectPath(f.device.path), dbus.WithMatchInterface(fprintDevice), dbus.WithMatchMember(enrollStatus)}
-	if err := f.conn.AddMatchSignal(match...); err != nil {
+type enrolment struct {
+	Result string `dbus:"result"`
+	Done   bool   `dbus:"done"`
+}
+
+var enrollStatus = dbusx.NewSignal[enrolment](fprintDevice, "EnrollStatus")
+
+func (f *fprint) watch(status func(result string, done bool), failed func(error)) (*dbusx.Watch, error) {
+	w, err := dbusx.WatchSignals(context.Background(), f.conn, dbusx.FromOwner(fprintName), failed,
+		dbusx.On(enrollStatus, f.device.path, func(e enrolment, _ dbus.Sequence) error {
+			status(e.Result, e.Done)
+			return nil
+		}))
+	if err != nil {
 		return nil, fmt.Errorf("follow the reader's enrolment: %w", err)
 	}
-	ch := make(chan *dbus.Signal, 16)
-	f.conn.Signal(ch)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for sig := range ch {
-			if sig.Path != f.device.path || sig.Name != fprintDevice+"."+enrollStatus || len(sig.Body) < 2 {
-				continue
-			}
-			result, _ := sig.Body[0].(string)
-			finished, _ := sig.Body[1].(bool)
-			status(result, finished)
-		}
-	}()
-	return func() {
-		f.conn.RemoveSignal(ch)
-		_ = f.conn.RemoveMatchSignal(match...)
-		close(ch)
-		<-done
-	}, nil
+	return w, nil
 }
 
 type enrollRing struct {
@@ -124,7 +117,7 @@ type fingerprintSection struct {
 	ring     *enrollRing
 	hint     *widget.Label
 	cancel   *widget.Button
-	stop     func()
+	watch    *dbusx.Watch
 	busy     bool
 }
 
@@ -265,14 +258,16 @@ type fingersListing struct {
 
 func (s *fingerprintSection) enroll(finger string, fail func(error)) {
 	t := locale.T()
-	stop, err := s.fp.watch(func(result string, done bool) {
+	watch, err := s.fp.watch(func(result string, done bool) {
 		s.k.invoke(func() { s.status(result, done, fail) })
+	}, func(err error) {
+		s.k.invoke(func() { fail(err) })
 	})
 	if err != nil {
 		fail(err)
 		return
 	}
-	s.stop, s.busy = stop, true
+	s.watch, s.busy = watch, true
 	s.ring.passed, s.ring.updates = 0, 0
 	s.ring.SetValue(0)
 	s.ring.SetVisible(true)
@@ -292,8 +287,7 @@ func (s *fingerprintSection) enroll(finger string, fail func(error)) {
 		return err
 	}, func(err error) {
 		if err != nil {
-			s.unwatch()
-			fail(permissionMessage(err))
+			fail(errors.Join(permissionMessage(err), s.unwatch()))
 		}
 	})
 }
@@ -318,20 +312,24 @@ func (s *fingerprintSection) status(result string, done bool, fail func(error)) 
 	}
 }
 
-func (s *fingerprintSection) unwatch() {
-	if s.stop != nil {
-		s.stop()
-		s.stop = nil
+func (s *fingerprintSection) unwatch() error {
+	var err error
+	if s.watch != nil {
+		err = s.watch.Stop()
+		s.watch = nil
 	}
 	s.busy = false
 	s.cancel.SetVisible(false)
+	return err
 }
 
 func (s *fingerprintSection) finish(fail func(error)) {
 	if !s.busy {
 		return
 	}
-	s.unwatch()
+	if err := s.unwatch(); err != nil {
+		fail(err)
+	}
 	fp := s.fp
 	s.call(fail, func(ctx context.Context) error {
 		return errors.Join(fp.device.call(ctx, "EnrollStop"), fp.device.call(ctx, "Release"))
@@ -340,11 +338,14 @@ func (s *fingerprintSection) finish(fail func(error)) {
 
 func (s *fingerprintSection) close() {
 	if s.busy {
-		s.unwatch()
+		unwatched := s.unwatch()
 		fp := s.fp
-		_, _ = withTimeout(func(ctx context.Context) (struct{}, error) {
+		_, err := withTimeout(func(ctx context.Context) (struct{}, error) {
 			return struct{}{}, errors.Join(fp.device.call(ctx, "EnrollStop"), fp.device.call(ctx, "Release"))
 		})
+		if err := errors.Join(unwatched, err); err != nil {
+			log.Printf("settings: end the fingerprint enrolment: %v", err)
+		}
 	}
 }
 

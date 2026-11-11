@@ -97,7 +97,7 @@ func serveFprint(t *testing.T, bus *dbustest.Bus, withDevice bool, enrolled *[]s
 
 func (r *fprintRig) emit(t *testing.T, result string, done bool) {
 	t.Helper()
-	if err := r.device.conn.Emit(fakeReader, fprintDevice+"."+enrollStatus, result, done); err != nil {
+	if err := enrollStatus.Emit(r.device.conn, fakeReader, enrolment{Result: result, Done: done}); err != nil {
 		t.Fatal(err)
 	}
 }

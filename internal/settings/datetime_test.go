@@ -55,7 +55,7 @@ func (f *fakeSys) set(key string, v any) {
 	f.mu.Lock()
 	f.props[key] = v
 	f.mu.Unlock()
-	_ = f.conn.Emit(f.path, propertiesIface+"."+propertiesChanged, f.iface, map[string]dbus.Variant{key: dbus.MakeVariant(v)}, []string{})
+	_ = dbusx.PropertiesChanged.Emit(f.conn, f.path, dbusx.ChangedProperties{Interface: f.iface, Changed: map[string]dbus.Variant{key: dbus.MakeVariant(v)}, Invalidated: []string{}})
 }
 
 func (f *fakeSys) getters() dbusx.Getters {

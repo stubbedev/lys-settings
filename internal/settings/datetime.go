@@ -17,6 +17,7 @@ import (
 	"github.com/stubbedev/lys-desktop/i18n"
 	"github.com/stubbedev/lys-desktop/strftime"
 	"github.com/stubbedev/lys-lib/atomicfile"
+	"github.com/stubbedev/lys-lib/dbusx"
 	"github.com/stubbedev/lys-lib/glibclocale"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/widget"
@@ -70,7 +71,7 @@ type sysPanel struct {
 	props   sysProps
 	problem *widget.Label
 	body    *widget.Box
-	stop    func()
+	watch   *dbusx.Watch
 	refresh func()
 	closed  bool
 }
@@ -124,13 +125,15 @@ func (p *sysPanel) open(extra func(context.Context, sysService) (any, error), sh
 			return
 		}
 		p.conn, p.svc.conn, p.props = o.conn, o.conn, o.props
-		stop, err := p.svc.watch(func(changed sysProps) {
+		watch, err := p.svc.watch(func(changed sysProps) {
 			p.k.invoke(func() { p.changed(changed) })
+		}, func(err error) {
+			p.k.invoke(func() { p.fail(err) })
 		})
 		if err != nil {
 			p.fail(err)
 		}
-		p.stop = stop
+		p.watch = watch
 		show(o.extra)
 	})
 }
@@ -167,9 +170,11 @@ func (p *sysPanel) do(method string, args ...any) {
 
 func (p *sysPanel) close() {
 	p.closed = true
-	if p.stop != nil {
-		p.stop()
-		p.stop = nil
+	if p.watch != nil {
+		if err := p.watch.Stop(); err != nil {
+			p.fail(err)
+		}
+		p.watch = nil
 	}
 	if p.conn != nil {
 		_ = p.conn.Close()
