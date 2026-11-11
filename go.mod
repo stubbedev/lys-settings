@@ -3,11 +3,11 @@ module github.com/stubbedev/lys-settings
 go 1.27.3
 
 require (
-	github.com/stubbedev/lys-desktop v0.0.6-0.20261111204504-54c630a8bd0d
-	github.com/stubbedev/lys-lib v0.3.19-0.20261111203805-29eb57ce162b
-	github.com/stubbedev/lys-login v0.3.23-0.20261111204543-a07857abc075
-	github.com/stubbedev/lys-secrets v0.3.19-0.20261111204327-a72f9144fa6c
-	github.com/stubbedev/lys-ui v0.2.22-0.20261111204419-725cccbc8cfa
+	github.com/stubbedev/lys-desktop v0.0.6-0.20261111221427-0d057fb2b98a
+	github.com/stubbedev/lys-lib v0.3.19-0.20261111221236-b147667f808a
+	github.com/stubbedev/lys-login v0.3.23-0.20261111221508-b5abf81d7977
+	github.com/stubbedev/lys-secrets v0.3.19-0.20261111221258-7bcafccd98fd
+	github.com/stubbedev/lys-ui v0.2.22-0.20261111221342-083a35e9137d
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
