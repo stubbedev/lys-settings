@@ -146,9 +146,7 @@ func TestAStockAvatarIsOneSetIconFileAndTheNameOneSetRealName(t *testing.T) {
 func TestWithoutAccountsServiceTheAvatarIsWrittenToFace(t *testing.T) {
 	bus := dbustest.Start(t)
 	home := t.TempDir()
-	before := homeDir
-	homeDir = func() (string, error) { return home, nil }
-	t.Cleanup(func() { homeDir = before })
+	t.Setenv("HOME", home)
 	p, l := usersFixture(t, bus)
 	l.drain(100 * time.Millisecond)
 	if p.realName.Enabled() || p.admin.Visible() {
@@ -315,5 +313,19 @@ func TestAPasswordChangeShowsPwqualitysRefusalAndRekeysOnSuccess(t *testing.T) {
 		if strings.Contains(logged.String(), pw) || strings.Contains(strings.Join(os.Args, " "), pw) || strings.Contains(strings.Join(os.Environ(), " "), pw) {
 			t.Fatalf("a password reached the log, argv or the environment")
 		}
+	}
+}
+
+func TestWithoutAnAbsoluteHomeNoFaceIsWritten(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	for _, home := range []string{"", "home"} {
+		err := writeFace(fakeHost(t, map[string]string{"HOME": home}), []byte("face"))
+		if err == nil || !strings.Contains(err.Error(), "HOME is not an absolute path") {
+			t.Errorf("HOME=%q: %v, want an error naming HOME", home, err)
+		}
+	}
+	if left := entries(cwd); len(left) != 0 {
+		t.Fatalf("%s was left in the working directory", left[0].Name())
 	}
 }

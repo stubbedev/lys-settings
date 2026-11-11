@@ -12,7 +12,6 @@ import (
 	"github.com/stubbedev/lys-desktop/logging"
 	"github.com/stubbedev/lys-desktop/service/clipboard"
 	"github.com/stubbedev/lys-desktop/shell/apptheme"
-	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 	"github.com/stubbedev/lys-ui/app"
 	"github.com/stubbedev/lys-ui/widget"
 
@@ -77,7 +76,7 @@ func Run(page, setting string) error {
 		face: app.FontFallback(face), mono: app.FontFallback(mono), monoVariants: app.FontVariants(mono),
 		store: store{svc}, invoke: application.Invoke,
 		background: func(fn func()) { go fn() },
-		systemBus:  func() (*dbus.Conn, error) { return dbus.ConnectSystemBus() },
+		systemBus:  dialSystemBus,
 	}
 	after := func(d time.Duration, fn func()) {
 		time.AfterFunc(d, func() { application.Invoke(fn) })

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/stubbedev/lys-lib/dbusx"
 	dbus "github.com/stubbedev/lys-lib/third_party/godbus"
 )
 
@@ -95,4 +96,8 @@ func withTimeout[T any](fn func(context.Context) (T, error)) (T, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), sysCallTimeout)
 	defer cancel()
 	return fn(ctx)
+}
+
+func dialSystemBus() (*dbus.Conn, error) {
+	return dbusx.DialSystem(context.Background(), sysCallTimeout)
 }

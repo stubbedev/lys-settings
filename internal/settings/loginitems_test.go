@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"maps"
 	"os"
@@ -316,8 +317,12 @@ func (m *staticManager) setEnabled(_ context.Context, name string, on bool) erro
 }
 
 func TestTestsNeverReadTheHostsAutostartEntries(t *testing.T) {
+	dirs, err := systemHost.autostartDirs()
+	if err != nil {
+		t.Fatal(err)
+	}
 	var read []string
-	if _, err := readAutostart(systemHost.autostartDirs(), []string{"lys-wm"}, func(dir string) ([]fs.DirEntry, error) {
+	if _, err := readAutostart(dirs, []string{"lys-wm"}, func(dir string) ([]fs.DirEntry, error) {
 		read = append(read, dir)
 		return nil, fs.ErrNotExist
 	}); err != nil {
@@ -442,4 +447,62 @@ func TestTheAddAppPickerOffersShownAppsAndAddsThePickedOne(t *testing.T) {
 		t.Fatalf("picking Notes wrote %q", got)
 	}
 	noFile(t, filepath.Join(d.user, "secret.desktop"))
+}
+
+func TestTheAutostartDirectoriesAreAbsoluteOrAnError(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		env    map[string]string
+		user   string
+		system []string
+	}{
+		{"the config home and dirs", map[string]string{"XDG_CONFIG_HOME": "/cfg", "HOME": "/home/me", "XDG_CONFIG_DIRS": "/a:relative::/b"}, "/cfg/autostart", []string{"/a/autostart", "/b/autostart"}},
+		{"the home alone", map[string]string{"HOME": "/home/me"}, "/home/me/.config/autostart", []string{"/etc/xdg/autostart"}},
+		{"a relative config home", map[string]string{"XDG_CONFIG_HOME": "cfg", "HOME": "/home/me", "XDG_CONFIG_DIRS": "relative"}, "/home/me/.config/autostart", []string{"/etc/xdg/autostart"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, err := fakeHost(t, c.env).autostartDirs()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.user != c.user || !slices.Equal(d.system, c.system) {
+				t.Fatalf("%+v, want the user's %s and the system's %q", d, c.user, c.system)
+			}
+		})
+	}
+	for name, env := range map[string]map[string]string{
+		"nothing set":     {"XDG_CONFIG_DIRS": "/etc/xdg"},
+		"a relative home": {"XDG_CONFIG_HOME": "cfg", "HOME": "me"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			d, err := fakeHost(t, env).autostartDirs()
+			if !errors.Is(err, errNoConfigHome) || !strings.Contains(err.Error(), "autostart") {
+				t.Fatalf("%+v, %v: want an error naming the autostart directory and both variables", d, err)
+			}
+		})
+	}
+}
+
+func TestWithoutAHomeTheLoginAppsSayWhyAndReadNoRelativeDirectory(t *testing.T) {
+	cwd := t.TempDir()
+	put(t, filepath.Join(cwd, ".config", "autostart", "stray.desktop"), "[Desktop Entry]\nType=Application\nName=Stray\nExec=true\n")
+	t.Chdir(cwd)
+	before := openUserManager
+	openUserManager = func() (userManager, func(), error) { return &staticManager{}, func() {}, nil }
+	t.Cleanup(func() { openUserManager = before })
+	k := testKit(t, "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "")
+	footer := loginItemsFooter(k)
+	if labels := treetest.Labels(footer); !slices.ContainsFunc(labels, func(text string) bool { return strings.Contains(text, errNoConfigHome.Error()) }) {
+		t.Fatalf("the page shows %q, not why it has no autostart directory", labels)
+	}
+	if rows := treetest.WithClass(footer, "login-item"); len(rows) != 0 {
+		t.Fatalf("%d login items listed from a directory relative to the working directory", len(rows))
+	}
+	for _, b := range treetest.All[*widget.Button](footer) {
+		if b.AccessibleName() == "Add app…" {
+			t.Fatal("Add app is offered with no autostart directory to add to")
+		}
+	}
 }

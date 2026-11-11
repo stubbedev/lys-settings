@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -325,4 +326,71 @@ func TestAPageWithoutTheServiceSaysSoAndOffersNothing(t *testing.T) {
 	if !found {
 		t.Fatal("the page does not say timedated is missing")
 	}
+}
+
+func TestTheLocaleConfPathIsAbsoluteOrAnError(t *testing.T) {
+	for want, env := range map[string]map[string]string{
+		"/cfg/locale.conf":             {"XDG_CONFIG_HOME": "/cfg", "HOME": "/home/me"},
+		"/home/me/.config/locale.conf": {"XDG_CONFIG_HOME": "cfg", "HOME": "/home/me"},
+	} {
+		if got, err := localeConfPath(fakeHost(t, env)); err != nil || got != want {
+			t.Errorf("%v: %q, %v, want %q", env, got, err, want)
+		}
+	}
+	for _, env := range []map[string]string{{}, {"XDG_CONFIG_HOME": "cfg", "HOME": "me"}} {
+		if got, err := localeConfPath(fakeHost(t, env)); !errors.Is(err, errNoConfigHome) || !strings.Contains(err.Error(), localeConfName) {
+			t.Errorf("%v: %q, %v, want an error naming %s and both variables", env, got, err, localeConfName)
+		}
+	}
+}
+
+func TestWithoutAHomeTheFormatsSayWhyAndTouchNoRelativeLocaleConf(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	useLocales(t, glibclocale.NewSource("", glibclocaletest.Dirs(t)))
+	k := testKit(t, "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "")
+	footer := regionFooter(k).(*closingBox)
+	t.Cleanup(footer.close)
+	if labels := treetest.Labels(footer); !slices.ContainsFunc(labels, func(text string) bool { return strings.Contains(text, errNoConfigHome.Error()) }) {
+		t.Fatalf("the page shows %q, not why it has no locale.conf", labels)
+	}
+	for _, dd := range treetest.All[*widget.Dropdown](footer) {
+		if slices.Contains(userFormats, dd.AccessibleName()) {
+			t.Fatalf("the format %s is offered with no locale.conf to write it to", dd.AccessibleName())
+		}
+	}
+	if left := entries(cwd); len(left) != 0 {
+		t.Fatalf("the page left %s in the working directory", left[0].Name())
+	}
+}
+
+func TestTheSystemBusDialReachesTheBusAndNamesItselfOnceWhenItCannot(t *testing.T) {
+	bus := dbustest.Start(t)
+	t.Setenv("DBUS_SYSTEM_BUS_ADDRESS", bus.Address)
+	conn, err := dialSystemBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(conn.Names()) == 0 {
+		t.Error("the dialled connection has no unique name")
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DBUS_SYSTEM_BUS_ADDRESS", "unix:path="+filepath.Join(t.TempDir(), "none"))
+	k := testKit(t, "")
+	k.systemBus = dialSystemBus
+	footer := dateTimeFooter(k).(*closingBox)
+	t.Cleanup(footer.close)
+	const dialing = "connect to the system bus"
+	for _, text := range treetest.Labels(footer) {
+		if n := strings.Count(text, dialing); n == 1 {
+			return
+		} else if n > 1 {
+			t.Fatalf("%q says %q %d times", text, dialing, n)
+		}
+	}
+	t.Fatalf("the page shows %q, not that the system bus cannot be reached", treetest.Labels(footer))
 }

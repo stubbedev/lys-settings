@@ -3,6 +3,7 @@ package settings
 import (
 	"bufio"
 	"cmp"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/stubbedev/lys-lib/xcursor"
+	"github.com/stubbedev/lys-lib/xdg"
 	"github.com/stubbedev/lys-lib/xkb"
 	"github.com/stubbedev/lys-lib/xkb/registry"
 )
@@ -21,11 +23,21 @@ type choice struct {
 type lister func() []choice
 
 type host struct {
-	root   string
-	getenv func(string) string
+	root string
+	env  xdg.Env
 }
 
-var systemHost = host{root: "/", getenv: os.Getenv}
+var systemHost = host{root: "/", env: xdg.OS}
+
+var errNoConfigHome = errors.New("neither XDG_CONFIG_HOME nor HOME is an absolute path")
+
+func (h host) configHome() (string, error) {
+	dir, ok := h.env.ConfigHome()
+	if !ok {
+		return "", errNoConfigHome
+	}
+	return dir, nil
+}
 
 func (h host) path(parts ...string) string {
 	return filepath.Join(append([]string{h.root}, parts...)...)
@@ -125,20 +137,6 @@ func (h host) pamServices() []choice {
 	return sortedChoices(out)
 }
 
-func (h host) dataDirs() []string {
-	var dirs []string
-	if data := h.getenv("XDG_DATA_HOME"); data != "" {
-		dirs = append(dirs, data)
-	} else if home := h.getenv("HOME"); home != "" {
-		dirs = append(dirs, filepath.Join(home, ".local", "share"))
-	}
-	system := h.getenv("XDG_DATA_DIRS")
-	if system == "" {
-		system = "/usr/local/share:/usr/share"
-	}
-	return append(dirs, filepath.SplitList(system)...)
-}
-
 func iniValue(path, section, key string) string {
 	f, err := os.Open(path) //nolint:gosec // an index.theme or desktop entry the listing found
 	if err != nil {
@@ -162,7 +160,7 @@ func iniValue(path, section, key string) string {
 
 func (h host) themes(cursors bool) []choice {
 	var out []choice
-	for _, dir := range xcursor.SearchPath(h.getenv) {
+	for _, dir := range xcursor.SearchPath(h.env) {
 		for _, e := range entries(dir) {
 			theme := filepath.Join(dir, e.Name())
 			index := filepath.Join(theme, "index.theme")
@@ -186,7 +184,7 @@ func (h host) cursorThemes() []choice { return h.themes(true) }
 
 func (h host) programs() []choice {
 	var out []choice
-	for _, dir := range filepath.SplitList(h.getenv("PATH")) {
+	for _, dir := range filepath.SplitList(h.env("PATH")) {
 		for _, e := range entries(dir) {
 			info, err := os.Stat(filepath.Join(dir, e.Name()))
 			if err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
@@ -199,7 +197,7 @@ func (h host) programs() []choice {
 
 func (h host) terminals() []choice {
 	var out []choice
-	for _, data := range h.dataDirs() {
+	for _, data := range h.env.DataSearchPath() {
 		dir := filepath.Join(data, "applications")
 		for _, e := range entries(dir) {
 			if !strings.HasSuffix(e.Name(), ".desktop") {
@@ -224,12 +222,13 @@ func (h host) terminals() []choice {
 var fontExtensions = []string{".ttf", ".otf", ".ttc"}
 
 func (h host) fontFiles() []choice {
-	dirs := []string{}
-	if home := h.getenv("HOME"); home != "" {
+	data := h.env.DataSearchPath()
+	dirs := make([]string, 0, 1+len(data))
+	if home, ok := h.env.Home(); ok {
 		dirs = append(dirs, filepath.Join(home, ".fonts"))
 	}
-	for _, data := range h.dataDirs() {
-		dirs = append(dirs, filepath.Join(data, "fonts"))
+	for _, dir := range data {
+		dirs = append(dirs, filepath.Join(dir, "fonts"))
 	}
 	var out []choice
 	for _, dir := range dirs {
@@ -253,7 +252,7 @@ type xkbLists struct {
 func (h host) xkb() xkbLists {
 	var out xkbLists
 	seen := map[string]bool{}
-	for _, dir := range xkb.NewContext(h.getenv).IncludePaths() {
+	for _, dir := range xkb.NewContext(h.env).IncludePaths() {
 		for _, e := range entries(filepath.Join(dir, "rules")) {
 			name, ok := strings.CutSuffix(e.Name(), ".xml")
 			if ok && !strings.HasSuffix(name, ".extras") && !seen[name] {
@@ -262,7 +261,7 @@ func (h host) xkb() xkbLists {
 			}
 		}
 	}
-	reg, err := registry.NewContext(h.getenv, 0)
+	reg, err := registry.NewContext(h.env, 0)
 	if err != nil || reg.ParseDefaultRuleset() != nil {
 		out.rules = sortedChoices(out.rules)
 		return out
@@ -291,7 +290,7 @@ var soundExtensions = []string{".oga", ".ogg", ".wav"}
 
 func (h host) soundNames() []choice {
 	var out []choice
-	for _, data := range h.dataDirs() {
+	for _, data := range h.env.DataSearchPath() {
 		themes := filepath.Join(data, "sounds")
 		for _, theme := range entries(themes) {
 			for _, e := range entries(filepath.Join(themes, theme.Name(), "stereo")) {

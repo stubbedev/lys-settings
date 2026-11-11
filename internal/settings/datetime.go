@@ -96,7 +96,7 @@ func (p *sysPanel) open(extra func(context.Context, sysService) (any, error), sh
 	async(p.k, func() sysOpened {
 		conn, err := p.k.systemBus()
 		if err != nil {
-			return sysOpened{err: fmt.Errorf("connect to the system bus: %w", err)}
+			return sysOpened{err: err}
 		}
 		svc := p.svc
 		svc.conn = conn
@@ -305,7 +305,7 @@ func fixedChoices(items []choice) lister {
 	return func() []choice { return slices.Clone(items) }
 }
 
-var localeSource = glibclocale.System(systemHost.getenv)
+var localeSource = glibclocale.System(systemHost.env)
 
 func listLocales() ([]string, error) {
 	names, err := localeSource.List()
@@ -344,12 +344,12 @@ func previewFormats(timeLocale, numericLocale, monetaryLocale string, at time.Ti
 	return formatsPreview{date: date, number: numeric.Format(previewNumber, previewScale), price: monetary.Format(previewPrice, previewScale, numeric)}, nil
 }
 
-func localeConfPath(h host) string {
-	config := h.getenv("XDG_CONFIG_HOME")
-	if config == "" {
-		config = filepath.Join(h.getenv("HOME"), ".config")
+func localeConfPath(h host) (string, error) {
+	config, err := h.configHome()
+	if err != nil {
+		return "", fmt.Errorf("find the user's %s: %w", localeConfName, err)
 	}
-	return filepath.Join(config, localeConfName)
+	return filepath.Join(config, localeConfName), nil
 }
 
 func readLocaleConf(path string) (map[string]string, []string, error) {
@@ -401,9 +401,12 @@ func writeLocaleConf(path, key, value string) error {
 	return nil
 }
 
-func regionFooter(k *kit) widget.Widget {
+func regionFormats(k *kit, lang func() string) (widget.Widget, func()) {
 	t := locale.T()
-	conf := localeConfPath(systemHost)
+	conf, err := localeConfPath(systemHost)
+	if err != nil {
+		return wrapped(k.label(err.Error(), "setting-problem", css.Caption, css.Error)), func() {}
+	}
 	preview := wrapped(k.label("", "setting-description", css.Caption, css.DimLabel))
 	formatsProblem := wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	formatsProblem.SetVisible(false)
@@ -414,15 +417,6 @@ func regionFooter(k *kit) widget.Widget {
 	formats := widget.NewBox(widget.Column, 0, 0)
 	formats.Append(head, false)
 	formats.Append(widget.NewSeparator(widget.Horizontal), false)
-	p := newSysPanel(k, localeName, localePath)
-	lang := func() string {
-		for _, kv := range p.props.strs("Locale") {
-			if v, ok := strings.CutPrefix(kv, "LANG="); ok {
-				return v
-			}
-		}
-		return ""
-	}
 	showPreview := func() {
 		values, _, err := readLocaleConf(conf)
 		if err != nil {
@@ -473,6 +467,21 @@ func regionFooter(k *kit) widget.Widget {
 		formats.Append(rows, false)
 		showPreview()
 	})
+	return formats, showPreview
+}
+
+func regionFooter(k *kit) widget.Widget {
+	t := locale.T()
+	p := newSysPanel(k, localeName, localePath)
+	lang := func() string {
+		for _, kv := range p.props.strs("Locale") {
+			if v, ok := strings.CutPrefix(kv, "LANG="); ok {
+				return v
+			}
+		}
+		return ""
+	}
+	formats, showPreview := regionFormats(k, lang)
 	p.open(func(context.Context, sysService) (any, error) { return listLocales() }, func(extra any) {
 		names, _ := extra.([]string)
 		language := widget.NewDropdown(k.face, k.textPx(), names, max(localeIndex(names, lang()), 0))

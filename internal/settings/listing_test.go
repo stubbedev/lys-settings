@@ -19,7 +19,7 @@ func put(t *testing.T, path, content string) {
 
 func fakeHost(t *testing.T, env map[string]string) host {
 	t.Helper()
-	return host{root: t.TempDir(), getenv: func(name string) string { return env[name] }}
+	return host{root: t.TempDir(), env: func(name string) string { return env[name] }}
 }
 
 func values(cs []choice) []string {
@@ -180,5 +180,33 @@ func TestTheSoundNamesComeFromEverySoundThemesStereoDirectory(t *testing.T) {
 	got := h.soundNames()
 	if len(got) != 2 || got[0].value != "bell" || got[1].value != "message-new-instant" {
 		t.Fatalf("sound names %+v", got)
+	}
+}
+
+func TestTheListingsReadNoDirectoryRelativeToTheWorkingDirectory(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	system := t.TempDir()
+	h := fakeHost(t, map[string]string{"HOME": "home", "XDG_DATA_HOME": "data", "XDG_DATA_DIRS": "share::" + system})
+	terminal := func(name string) string {
+		return "[Desktop Entry]\nName=" + name + "\nExec=" + name + "\nCategories=TerminalEmulator;\n"
+	}
+	for _, data := range []string{"", "data", "share", "home/.local/share"} {
+		put(t, filepath.Join(cwd, data, "applications/stray.desktop"), terminal("stray"))
+		put(t, filepath.Join(cwd, data, "fonts/Stray.ttf"), "")
+		put(t, filepath.Join(cwd, data, "sounds/stray/stereo/stray.oga"), "")
+	}
+	put(t, filepath.Join(cwd, "home/.fonts/Stray.ttf"), "")
+	put(t, filepath.Join(system, "applications/foot.desktop"), terminal("foot"))
+	put(t, filepath.Join(system, "fonts/Inter.ttf"), "")
+	put(t, filepath.Join(system, "sounds/freedesktop/stereo/bell.oga"), "")
+	if got := values(h.terminals()); !slices.Equal(got, []string{"foot"}) {
+		t.Errorf("terminals %q, want the system data directory's alone", got)
+	}
+	if got := values(h.fontFiles()); !slices.Equal(got, []string{filepath.Join(system, "fonts/Inter.ttf")}) {
+		t.Errorf("fonts %q, want the system data directory's alone", got)
+	}
+	if got := values(h.soundNames()); !slices.Equal(got, []string{"bell"}) {
+		t.Errorf("sounds %q, want the system data directory's alone", got)
 	}
 }

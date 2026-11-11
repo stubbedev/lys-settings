@@ -142,12 +142,10 @@ func (a accounts) others(ctx context.Context) ([]otherUser, error) {
 	return out, nil
 }
 
-var homeDir = os.UserHomeDir
-
-func writeFace(data []byte) error {
-	home, err := homeDir()
-	if err != nil {
-		return fmt.Errorf("find the home directory for ~/.face: %w", err)
+func writeFace(h host, data []byte) error {
+	home, ok := h.env.Home()
+	if !ok {
+		return errors.New("find the home directory for ~/.face: HOME is not an absolute path")
 	}
 	path := filepath.Join(home, faceFile)
 	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
@@ -158,7 +156,7 @@ func writeFace(data []byte) error {
 
 func setAvatar(ctx context.Context, acc *accounts, data []byte) error {
 	if acc == nil {
-		return writeFace(data)
+		return writeFace(systemHost, data)
 	}
 	cache, ok := xdg.OS.CacheDir("lys-settings")
 	if !ok {

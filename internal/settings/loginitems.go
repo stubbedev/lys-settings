@@ -54,22 +54,17 @@ type autostartDirs struct {
 	system []string
 }
 
-func (h host) autostartDirs() autostartDirs {
-	config := h.getenv("XDG_CONFIG_HOME")
-	if config == "" {
-		config = filepath.Join(h.getenv("HOME"), ".config")
+func (h host) autostartDirs() (autostartDirs, error) {
+	config, err := h.configHome()
+	if err != nil {
+		return autostartDirs{}, fmt.Errorf("find the user's autostart directory: %w", err)
 	}
-	system := h.getenv("XDG_CONFIG_DIRS")
-	if system == "" {
-		system = "/etc/xdg"
+	system := h.env.ConfigDirs()
+	d := autostartDirs{user: filepath.Join(config, autostartDirName), system: make([]string, len(system))}
+	for i, dir := range system {
+		d.system[i] = filepath.Join(dir, autostartDirName)
 	}
-	d := autostartDirs{user: filepath.Join(config, autostartDirName)}
-	for _, dir := range filepath.SplitList(system) {
-		if dir != "" {
-			d.system = append(d.system, filepath.Join(dir, autostartDirName))
-		}
-	}
-	return d
+	return d, nil
 }
 
 type autostartEntry struct {
@@ -319,23 +314,33 @@ type loginItems struct {
 }
 
 func loginItemsFooter(k *kit) widget.Widget {
-	l := &loginItems{k: k, dirs: systemHost.autostartDirs(), desktops: desktopentry.CurrentDesktops()}
+	l := &loginItems{k: k, desktops: desktopentry.CurrentDesktops()}
 	content := sectionStack()
 	l.problem = wrapped(k.label("", "setting-problem", css.Caption, css.Error))
 	l.problem.SetVisible(false)
 	content.Append(l.problem, false)
 	l.apps = widget.NewBox(widget.Column, 0, 0)
 	apps := newSection(k, "settings-section-login-apps", l.apps)
-	var add *widget.Button
-	add = addButton(k, "settings-login-apps-add", func() { l.pickApp(add) })
-	add.SetAccessibleName(locale.T().Get("settings-login-apps-add"))
-	apps.AppendAligned(add, false, widget.AlignStart)
 	content.Append(apps, false)
 	l.services = gapBox(widget.Column)
 	content.Append(newSection(k, "settings-section-login-services", l.services), false)
-	l.loadApps()
+	l.openApps(apps)
 	l.loadServices()
 	return content
+}
+
+func (l *loginItems) openApps(section *widget.Box) {
+	dirs, err := systemHost.autostartDirs()
+	if err != nil {
+		l.showApps(autostartListing{err: err})
+		return
+	}
+	l.dirs = dirs
+	var add *widget.Button
+	add = addButton(l.k, "settings-login-apps-add", func() { l.pickApp(add) })
+	add.SetAccessibleName(locale.T().Get("settings-login-apps-add"))
+	section.AppendAligned(add, false, widget.AlignStart)
+	l.loadApps()
 }
 
 func (l *loginItems) fail(err error) {
