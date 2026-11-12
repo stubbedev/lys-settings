@@ -62,7 +62,7 @@ func (s sysService) watch(changed func(sysProps), failed func(error)) (*dbusx.Wa
 	w, err := dbusx.WatchSignals(context.Background(), s.conn, dbusx.FromOwner(s.name), failed,
 		dbusx.On(dbusx.PropertiesChanged, s.path, func(c dbusx.ChangedProperties, _ dbus.Sequence) error {
 			changed(c.Changed)
-			return dbus.CloseFDs([]any{c.Changed})
+			return nil
 		}).WithArg0(s.iface))
 	if err != nil {
 		return nil, fmt.Errorf("follow %s's properties: %w", s.name, err)
