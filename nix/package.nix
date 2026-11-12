@@ -1,5 +1,6 @@
 {
   perSystem = {
+    inputs',
     lib,
     pkgs,
     ...
@@ -19,6 +20,7 @@
       lys-settings = pkgs.callPackage ./lys-settings.nix {
         version = "0-unstable-${lib.substring 0 8 (builtins.unsafeDiscardStringContext (baseNameOf src))}";
         inherit src;
+        buildGoModule = pkgs.buildGoModule.override {go = inputs'.devtools.packages.go;};
       };
       default = lys-settings;
     };

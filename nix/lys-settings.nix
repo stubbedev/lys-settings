@@ -1,6 +1,6 @@
 {
   lib,
-  buildGo127Module,
+  buildGoModule,
   makeWrapper,
   libX11,
   xkeyboard-config,
@@ -13,7 +13,7 @@
   # recorder pages' device probes.
   libs = [libva vulkan-loader];
 in
-  buildGo127Module {
+  buildGoModule {
     pname = "lys-settings";
     inherit version src;
 
