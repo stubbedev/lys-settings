@@ -1,6 +1,6 @@
 module github.com/stubbedev/lys-settings
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/stubbedev/lys-desktop v0.0.8-0.20261112081621-05a3208ad05a
