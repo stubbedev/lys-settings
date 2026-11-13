@@ -17,7 +17,7 @@ in
     pname = "lys-settings";
     inherit version src;
 
-    vendorHash = "sha256-rrxIxWr/6ataMF6VLpQIWx/bJH9GbuJAFjpd6SZ2wyU=";
+    vendorHash = "sha256-xSoUYoVt+xCLLcd5uHePATaDbN3b40s0rsrE3Z6zSQo=";
 
     subPackages = ["cmd/lys-settings"];
 
