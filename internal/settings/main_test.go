@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stubbedev/lys-lib/testhome"
+	"golang.org/x/sys/unix"
 )
 
 const noHostDir = "/nonexistent/lys-settings-test"
@@ -22,3 +23,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestTheTestsReachNoHostSession(t *testing.T) { testhome.RequireNoHostSession(t) }
+
+func TestTemporaryDirectoriesAreOnATmpfs(t *testing.T) {
+	var fs unix.Statfs_t
+	dir := t.TempDir()
+	if err := unix.Statfs(dir, &fs); err != nil || fs.Type != unix.TMPFS_MAGIC {
+		t.Fatalf("%s: statfs %v, type %#x, want a tmpfs", dir, err, fs.Type)
+	}
+}
