@@ -301,12 +301,14 @@ func TestRowResetButtonFollowsTheOverride(t *testing.T) {
 }
 
 // Every page the layout lists is complete: its keys are in the
-// settings FTL and every row builds.
+// settings FTL and every row builds. Every page of the window keeps to
+// the window beside the sidebar.
 func TestEveryPageBuilds(t *testing.T) {
 	k := testKit(t, "")
 	tr := locale.T()
 	ids := map[string]bool{}
-	for _, s := range layout(k.store.svc.Config()) {
+	w := newWindow(k, k.store.svc.Config(), func(_ time.Duration, fn func()) { fn() })
+	for _, s := range w.sections {
 		if !tr.Has(s.key) {
 			t.Errorf("section key %s missing", s.key)
 		}
@@ -339,7 +341,9 @@ func TestEveryPageBuilds(t *testing.T) {
 					}
 				}
 			}
-			page := buildPage(k, p)
+			w.show(p.id)
+			page := w.page
+			assertPageFits(t, w)
 			if len(page.rows) == 0 && p.footer == nil {
 				t.Errorf("%s: no rows", p.id)
 			}
@@ -2176,8 +2180,7 @@ func TestPickerPopoverGap(t *testing.T) {
 // caption breadcrumb over an h4 title, each section a dim caption
 // heading over lys-ui's card holding an item group of the rows, each
 // row's description a dim caption and its reset a ghost icon button,
-// and the close button a ghost icon button. Every page of the window
-// keeps to the window beside the sidebar.
+// and the close button a ghost icon button.
 func TestWindowTakesLysUiParts(t *testing.T) {
 	k := testKit(t, "")
 	cfg := k.store.svc.Config()
@@ -2212,13 +2215,6 @@ func TestWindowTakesLysUiParts(t *testing.T) {
 	for _, l := range treetest.WithClass(w.root, "setting-label") {
 		if widget.HasClass(l, css.DimLabel) {
 			t.Error("a setting's label is dim")
-		}
-	}
-
-	for _, sec := range w.sections {
-		for _, p := range sec.pages {
-			w.show(p.id)
-			assertPageFits(t, w)
 		}
 	}
 }

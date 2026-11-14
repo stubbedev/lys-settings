@@ -12,7 +12,8 @@ import (
 	"github.com/stubbedev/lys-ui/widget"
 )
 
-// geometryYAML gives every list and card editor items to lay out.
+// geometryYAML gives every list and card editor items to lay out, and
+// sets the wallpaper's cycling directory, so its revealed rows are shown.
 const geometryYAML = `
 bar:
   layout:
@@ -30,26 +31,43 @@ modules:
       - below: 20
         icon-color: red
 wallpaper:
+  cycling-directory: /tmp
   monitors:
     - name: DP-1
       wallpaper: /tmp/a.png
 `
 
-// laidOutPages shows every page of a styled window in turn, laid out
-// tall enough to hold all of it, and hands each to visit.
-func laidOutPages(t *testing.T, visit func(id string, page widget.Widget)) {
-	t.Helper()
+// pageCheck is a property every page of a styled window holds, checked
+// on each page as it is laid out; done checks what the pages hold
+// together.
+type pageCheck struct {
+	visit func(t *testing.T, w *window)
+	done  func(t *testing.T)
+}
+
+// Every page of a styled window, shown in turn and laid out tall enough
+// to hold all of it, holds every pageCheck. The pages are built and
+// laid out once for all of them.
+func TestEveryLaidOutPageHoldsThePageChecks(t *testing.T) {
 	k := testKit(t, geometryYAML)
 	cfg := k.store.svc.Config()
 	w := newWindow(k, cfg, func(_ time.Duration, fn func()) { fn() })
 	w.stack.SetTransition(widget.StackNone, 0)
 	apptheme.New(cfg).Attach(w.root)
+	checks := []pageCheck{controlRowsShareHeightCentreAndGap(), pagesCarryNoMargins(), cardFieldsLineUp(), tabReachesEveryControl(w)}
 	const W, H = 1400, 6000
 	for _, sec := range w.sections {
 		for _, p := range sec.pages {
 			w.show(p.id)
 			w.root.Arrange(render.Rect{W: W, H: H})
-			visit(p.id, w.page)
+			for _, c := range checks {
+				c.visit(t, w)
+			}
+		}
+	}
+	for _, c := range checks {
+		if c.done != nil {
+			c.done(t)
 		}
 	}
 }
@@ -106,11 +124,12 @@ type rowBox interface {
 // controls share the row's centre line, the field controls (entries,
 // spins, dropdowns, buttons) one height, and neighbouring controls sit
 // the theme's spacing apart.
-func TestControlRowsShareHeightCentreAndGap(t *testing.T) {
+func controlRowsShareHeightCentreAndGap() pageCheck {
 	gap := widget.Current().Spacing
 	rows := 0
-	laidOutPages(t, func(id string, page widget.Widget) {
-		walkOwn(page, func(x widget.Widget) {
+	visit := func(t *testing.T, w *window) {
+		id := w.pageID
+		walkOwn(w.page, func(x widget.Widget) {
 			row, ok := x.(rowBox)
 			if !ok || row.Axis() != widget.Row || !shown(x) {
 				return
@@ -148,30 +167,32 @@ func TestControlRowsShareHeightCentreAndGap(t *testing.T) {
 				rows++
 			}
 		})
-	})
-	if rows == 0 {
-		t.Fatal("no page laid out a row of several controls")
 	}
+	return pageCheck{visit: visit, done: func(t *testing.T) {
+		if rows == 0 {
+			t.Error("no page laid out a row of several controls")
+		}
+	}}
 }
 
 // No widget on a page carries a margin of its own: spacing comes from
 // the boxes' gaps and lys-ui's own padding.
-func TestPagesCarryNoMargins(t *testing.T) {
-	laidOutPages(t, func(id string, page widget.Widget) {
-		walkOwn(page, func(x widget.Widget) {
+func pagesCarryNoMargins() pageCheck {
+	return pageCheck{visit: func(t *testing.T, w *window) {
+		walkOwn(w.page, func(x widget.Widget) {
 			if m, ok := x.(interface{ Margin() render.Insets }); ok && m.Margin() != (render.Insets{}) {
-				t.Errorf("%s: %T carries the margin %+v", id, x, m.Margin())
+				t.Errorf("%s: %T carries the margin %+v", w.pageID, x, m.Margin())
 			}
 		})
-	})
+	}}
 }
 
 // A card's fields line up: the controls that take a field's spare width
 // start at one x, its identity's too, and its fields sit the theme's
 // spacing apart. The layout card's zones start their chips at one x.
-func TestCardFieldsLineUp(t *testing.T) {
+func cardFieldsLineUp() pageCheck {
 	gap := widget.Current().Spacing
-	sameX := func(id, what string, ws []widget.Widget) {
+	sameX := func(t *testing.T, id, what string, ws []widget.Widget) {
 		t.Helper()
 		if len(ws) < 2 {
 			t.Fatalf("%s: %d %s, want several to compare", id, len(ws), what)
@@ -184,7 +205,8 @@ func TestCardFieldsLineUp(t *testing.T) {
 		}
 	}
 	checked := map[string]bool{}
-	laidOutPages(t, func(id string, page widget.Widget) {
+	visit := func(t *testing.T, w *window) {
+		id, page := w.pageID, w.page
 		switch id {
 		case "battery":
 			body := treetest.WithClass(page, "card-form-body")[0].(*widget.Box)
@@ -198,19 +220,21 @@ func TestCardFieldsLineUp(t *testing.T) {
 			checked[id] = true
 		case "wallpaper":
 			card := treetest.WithClass(page, "monitor-card")[0]
-			sameX(id, "monitor card's fields", []widget.Widget{
+			sameX(t, id, "monitor card's fields", []widget.Widget{
 				treetest.All[*liveText](treetest.WithClass(card, "monitor-card-header")[0])[0],
 				treetest.WithClass(card, "monitor-wallpaper-entry")[0],
 			})
 			checked[id] = true
 		case "bar-general":
-			sameX(id, "layout zones", treetest.WithClass(page, "layout-zone-items"))
+			sameX(t, id, "layout zones", treetest.WithClass(page, "layout-zone-items"))
 			checked[id] = true
 		}
-	})
-	if len(checked) != 3 {
-		t.Errorf("checked %v, want the battery, wallpaper and bar-general pages", checked)
 	}
+	return pageCheck{visit: visit, done: func(t *testing.T) {
+		if len(checked) != 3 {
+			t.Errorf("checked %v, want the battery, wallpaper and bar-general pages", checked)
+		}
+	}}
 }
 
 // A custom color shows its color button beside the token dropdown at
@@ -321,47 +345,55 @@ func layOut(win *window, w int) {
 	}
 }
 
-// pathFieldWidths are the widths of the path entries on page id of a
-// window w pixels wide on desktop d.
-func pathFieldWidths(t *testing.T, d desktop, id string, w int) []int {
+// pathFieldWidths are the widths of the path entries on win's page.
+func pathFieldWidths(t *testing.T, win *window) []int {
 	t.Helper()
 	var widths []int
-	for _, c := range treetest.All[*fileEditor](laidOutPageOn(t, d, pathPagesYAML, id, w).page) {
+	for _, c := range treetest.All[*fileEditor](win.page) {
 		widths = append(widths, c.entry.Bounds().W)
 	}
 	if len(widths) == 0 {
-		t.Fatalf("%s holds no path row", id)
+		t.Fatalf("%s holds no path row", win.pageID)
 	}
 	return widths
 }
 
 // Every path field is one width, whatever its row's description and
 // however narrow the window: the description gives way, not the field.
-func TestPathFieldsShareOneWidth(t *testing.T) {
+// Every page with a path row, the row and all, fits a narrow window on
+// every desktop: no control reaches past its right edge. One window per
+// desktop shows each path page in turn at both widths.
+func TestPathFieldsShareOneWidthAndTheirPagesFitANarrowWindow(t *testing.T) {
 	for _, d := range narrowDesktops {
 		t.Run(d.name, func(t *testing.T) {
-			want := pathFieldWidths(t, d, "wallpaper", windowWidth)[0]
+			win := laidOutPageOn(t, d, pathPagesYAML, pathPages[0], windowWidth)
+			want := pathFieldWidths(t, win)[0]
 			if want <= 0 {
 				t.Fatalf("the path field is %dpx wide", want)
 			}
 			for _, id := range pathPages {
+				win.show(id)
 				for _, w := range []int{windowWidth, narrowWindowWidth} {
-					for i, got := range pathFieldWidths(t, d, id, w) {
+					layOut(win, w)
+					for i, got := range pathFieldWidths(t, win) {
 						if got != want {
 							t.Errorf("%s at %dpx: path field %d is %dpx wide, want the %dpx every path field takes", id, w, i, got, want)
 						}
 					}
+				}
+				if past := overflow(t, win); len(past) > 0 {
+					t.Errorf("%s at %dpx: these reach past the window: %v", id, narrowWindowWidth, past)
 				}
 			}
 		})
 	}
 }
 
-// overflow lays page id out in a narrow window on desktop d and
-// returns the controls reaching past the window's right edge.
-func overflow(t *testing.T, d desktop, id string) []string {
+// overflow is the controls on win's page, laid out narrowWindowWidth
+// wide, reaching past the window's right edge.
+func overflow(t *testing.T, win *window) []string {
 	t.Helper()
-	win := laidOutPageOn(t, d, pathPagesYAML, id, narrowWindowWidth)
+	id := win.pageID
 	var out []string
 	controls := 0
 	walkOwn(win.page, func(x widget.Widget) {
@@ -390,20 +422,6 @@ func cutTitles(page widget.Widget) []*widget.Label {
 		}
 	}
 	return cut
-}
-
-// Every page with a path row, the row and all, fits a narrow window on
-// every desktop: no control reaches past its right edge.
-func TestPathPagesFitANarrowWindow(t *testing.T) {
-	for _, d := range narrowDesktops {
-		for _, id := range pathPages {
-			t.Run(d.name+"/"+id, func(t *testing.T) {
-				if past := overflow(t, d, id); len(past) > 0 {
-					t.Errorf("at %dpx these reach past the window: %v", narrowWindowWidth, past)
-				}
-			})
-		}
-	}
 }
 
 // The path field is the narrowest that still reads its path's head and
