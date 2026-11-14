@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stubbedev/lys-desktop/config"
@@ -37,6 +39,7 @@ type sweepAction struct {
 	phase sweepPhase
 	name  string
 	do    func()
+	drove string
 }
 
 func shownAndEnabled(w widget.Widget) bool {
@@ -59,10 +62,14 @@ func buttonPhase(b *widget.Button) sweepPhase {
 
 // sweepActions is everything a user can do to the row's controls
 // without typing, in tree order: every button, switch, check, segment,
-// dropdown row, spin step and clear, slider end and colour pick.
-func sweepActions(root widget.Widget) []sweepAction {
+// dropdown row, spin step and clear, slider end and colour pick. With
+// driven, a dropdown goes through only its first and last row where its
+// rows were driven before or an earlier dropdown in the tree shows the same
+// rows; the action picking the last of a full run names the rows it drove.
+func sweepActions(root widget.Widget, driven map[string]bool) []sweepAction {
 	var out []sweepAction
-	edit := func(name string, do func()) { out = append(out, sweepAction{phaseEdit, name, do}) }
+	edit := func(name string, do func()) { out = append(out, sweepAction{phase: phaseEdit, name: name, do: do}) }
+	inTree := map[string]bool{}
 	var walk func(w widget.Widget)
 	walk = func(w widget.Widget) {
 		if !shownAndEnabled(w) {
@@ -86,7 +93,7 @@ func sweepActions(root widget.Widget) []sweepAction {
 			return
 		case *widget.Button:
 			if x.OnClick != nil {
-				out = append(out, sweepAction{buttonPhase(x), fmt.Sprintf("click %q %v", x.TooltipText(), x.Classes()), x.OnClick})
+				out = append(out, sweepAction{phase: buttonPhase(x), name: fmt.Sprintf("click %q %v", x.TooltipText(), x.Classes()), do: x.OnClick})
 			}
 		case *widget.Switch:
 			edit("toggle", x.Toggle)
@@ -99,13 +106,24 @@ func sweepActions(root widget.Widget) []sweepAction {
 				edit(fmt.Sprintf("segment %d", i), func() { x.SetActive(i) })
 			}
 		case *widget.Dropdown:
-			for i, item := range x.Items() {
-				edit(fmt.Sprintf("dropdown row %d (%s)", i, item), func() {
+			items := x.Items()
+			key := strings.Join(items, "\x00")
+			full := driven == nil || !driven[key] && !inTree[key]
+			inTree[key] = true
+			for i := range items {
+				if !full && i != 0 && i != len(items)-1 {
+					continue
+				}
+				a := sweepAction{phase: phaseEdit, name: fmt.Sprintf("dropdown row %d (%s)", i, items[i]), do: func() {
 					x.SetSelected(i)
 					if x.OnSelect != nil {
 						x.OnSelect(i)
 					}
-				})
+				}}
+				if full && i == len(items)-1 {
+					a.drove = key
+				}
+				out = append(out, a)
 			}
 			return
 		case *widget.SpinButton:
@@ -142,20 +160,29 @@ func sweepActions(root widget.Widget) []sweepAction {
 // sweepRow drives the row through its phases: each add there is at the
 // start, then every edit, then every remove, then the reset; after runs
 // after each step. Steps are taken by position, re-read after each, since
-// a step may rebuild the controls.
-func sweepRow(t *testing.T, row *settingRow, after func(action string)) {
+// a step may rebuild the controls. The dropdown rows it drives all of join
+// driven once the row is done; without driven, every dropdown is driven
+// through every row.
+func sweepRow(t *testing.T, row *settingRow, driven map[string]bool, after func(action string)) {
 	t.Helper()
+	met := map[string]bool{}
+	if driven != nil {
+		defer maps.Copy(driven, met)
+	}
 	popovers := &fakePickers{}
 	row.kit.pickers = popovers
 	step := func(a sweepAction) {
 		popovers.content = nil
 		a.do()
+		if a.drove != "" {
+			met[a.drove] = true
+		}
 		row.refresh()
 		after(a.name)
 		if popovers.content == nil {
 			return
 		}
-		for _, in := range sweepActions(popovers.content) {
+		for _, in := range sweepActions(popovers.content, driven) {
 			if in.phase == phaseEdit {
 				in.do()
 				row.refresh()
@@ -166,7 +193,7 @@ func sweepRow(t *testing.T, row *settingRow, after func(action string)) {
 	}
 	of := func(phase sweepPhase) []sweepAction {
 		var out []sweepAction
-		for _, a := range sweepActions(row) {
+		for _, a := range sweepActions(row, driven) {
 			if a.phase == phase {
 				out = append(out, a)
 			}
@@ -222,7 +249,7 @@ func TestEveryWMControlWritesOnlyWhatLysWMAccepts(t *testing.T) {
 	for _, spec := range allWMRows() {
 		row := newFieldRow(k, w, spec)
 		k.onWMChange = row.refresh
-		sweepRow(t, row, func(action string) {
+		sweepRow(t, row, nil, func(action string) {
 			if w.class == "error" {
 				t.Errorf("%s: %s: %s", spec.path, action, w.notice)
 				w.show("", "")
@@ -234,29 +261,35 @@ func TestEveryWMControlWritesOnlyWhatLysWMAccepts(t *testing.T) {
 // Every lys-shell control, driven through every add, edit, remove and
 // reset, writes only values lys-shell's validator takes, and what it saved
 // loads back without an error: each write is checked as it is made, the
-// saved file once the row's sweep is done.
+// saved file once the row's sweep is done. Each list of dropdown rows goes
+// through every row once, the first time a control shows it.
 func TestEveryShellControlWritesOnlyWhatLysShellAccepts(t *testing.T) {
-	k := testKit(t, "")
+	base := testKit(t, "")
+	driven := map[string]bool{}
 	for _, spec := range shellRows() {
-		row := newFieldRow(k, k.store, spec)
-		var steps []string
-		sweepRow(t, row, func(action string) {
-			steps = append(steps, action)
-			if row.problem.Visible() {
-				t.Errorf("%s: %s: refused: %s", spec.path, action, row.problem.Text())
-				row.showProblem(nil)
+		t.Run(spec.path, func(t *testing.T) {
+			k := *base
+			k.store = testStore(t, "")
+			row := newFieldRow(&k, k.store, spec)
+			var steps []string
+			sweepRow(t, row, driven, func(action string) {
+				steps = append(steps, action)
+				if row.problem.Visible() {
+					t.Errorf("%s: refused: %s", action, row.problem.Text())
+					row.showProblem(nil)
+				}
+			})
+			var problems []string
+			svc := config.Load(k.store.svc.Dir(), func(d config.Diagnostic) {
+				if d.Kind == config.DiagnosticError {
+					problems = append(problems, d.Plain())
+				}
+			})
+			svc.Close()
+			if len(problems) > 0 {
+				t.Errorf("after %q lys-shell reads back %v\nruntime.yaml:\n%s", steps, problems, runtimeFile(t, &k))
 			}
 		})
-		var problems []string
-		svc := config.Load(k.store.svc.Dir(), func(d config.Diagnostic) {
-			if d.Kind == config.DiagnosticError {
-				problems = append(problems, d.Plain())
-			}
-		})
-		svc.Close()
-		if len(problems) > 0 {
-			t.Errorf("%s: after %q lys-shell reads back %v\nruntime.yaml:\n%s", spec.path, steps, problems, runtimeFile(t, k))
-		}
 	}
 }
 
@@ -367,7 +400,7 @@ func TestARefusedChangeLeavesEveryWMControlAtTheLastAcceptedState(t *testing.T) 
 	for _, spec := range allWMRows() {
 		row := newFieldRow(k, w, spec)
 		k.onWMChange = row.refresh
-		sweepRow(t, row, func(action string) {
+		sweepRow(t, row, nil, func(action string) {
 			if w.class != "error" {
 				return
 			}

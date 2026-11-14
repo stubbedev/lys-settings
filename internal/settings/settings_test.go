@@ -32,15 +32,8 @@ import (
 // loop invoke running inline.
 func testKit(t *testing.T, configYAML string) *kit {
 	t.Helper()
-	dir := t.TempDir()
-	if configYAML != "" {
-		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(configYAML), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	s := testStore(t, configYAML)
 	face := treetest.Font(t)
-	svc := config.Load(dir, config.DiscardDiagnostics)
-	t.Cleanup(svc.Close)
 	// The device lists never reach the session's audio daemon or the
 	// machine's cameras.
 	mics, cams := microphoneChoices, cameraChoices
@@ -50,7 +43,20 @@ func testKit(t *testing.T, configYAML string) *kit {
 	lists := systemLists
 	systemLists = fixedLists()
 	t.Cleanup(func() { systemLists = lists })
-	return &kit{face: face, mono: face, store: store{svc}, invoke: func(fn func()) { fn() }, systemBus: func() (*dbus.Conn, error) { return nil, errors.New("no system bus in the tests") }}
+	return &kit{face: face, mono: face, store: s, invoke: func(fn func()) { fn() }, systemBus: func() (*dbus.Conn, error) { return nil, errors.New("no system bus in the tests") }}
+}
+
+func testStore(t *testing.T, configYAML string) store {
+	t.Helper()
+	dir := t.TempDir()
+	if configYAML != "" {
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(configYAML), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := config.Load(dir, config.DiscardDiagnostics)
+	t.Cleanup(svc.Close)
+	return store{svc}
 }
 
 // runtimeFile is runtime.yaml's content.
