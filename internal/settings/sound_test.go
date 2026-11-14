@@ -148,10 +148,10 @@ func TestTheLevelMeterRecordsOnlyWhileThePageIsShown(t *testing.T) {
 	if rec.Source != "mic" || rec.Props["media.name"] != meterSpec.Name {
 		t.Fatalf("recording %q as %q", rec.Source, rec.Props["media.name"])
 	}
-	l.drain(0)
+	l.settle()
 	w.show("general")
 	srv.WaitRecords(t, 0)
-	l.drain(0)
+	l.settle()
 	w.show(soundID)
 	srv.WaitRecords(t, 1)
 }

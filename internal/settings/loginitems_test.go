@@ -268,7 +268,7 @@ func startFakeSystemd(t *testing.T) (*fakeSystemd, *dbus.Conn) {
 func TestTheSessionsServicesComeFromOneListingOfTheirUnitFiles(t *testing.T) {
 	f, conn := startFakeSystemd(t)
 	m := systemdUser{conn: conn, resolve: func(p string) (string, error) { return p, nil }}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), hangGuard)
 	defer cancel()
 	units, err := m.units(ctx)
 	if err != nil {

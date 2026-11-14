@@ -163,7 +163,7 @@ func TestChangePasswordRekeysThroughOnePrompt(t *testing.T) {
 
 func TestTheItemsLoadWithOneSearchAndOneGetAllAPage(t *testing.T) {
 	r := startPasswords(t, itemsPerPage+3)
-	r.l.drain(0)
+	r.l.settle()
 	if r.mon.count("SearchItems") != 1 || r.mon.count("GetAll") != itemsPerPage+1 {
 		t.Fatalf("SearchItems %d, GetAll %d; want one search and a GetAll for each of the first %d items plus the collection", r.mon.count("SearchItems"), r.mon.count("GetAll"), itemsPerPage)
 	}

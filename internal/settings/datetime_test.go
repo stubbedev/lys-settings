@@ -130,13 +130,24 @@ func systemKit(t *testing.T, bus *dbustest.Bus) (*kit, *loop) {
 
 func (l *loop) until(what string, ok func() bool) {
 	l.t.Helper()
-	deadline := time.After(10 * time.Second)
+	deadline := time.After(hangGuard)
 	for !ok() {
 		select {
 		case fn := <-l.queue:
 			fn()
 		case <-deadline:
-			l.t.Fatalf("no %s in 10s", what)
+			l.t.Fatalf("no %s in %v", what, hangGuard)
+		}
+	}
+}
+
+func (l *loop) settle() {
+	for {
+		select {
+		case fn := <-l.queue:
+			fn()
+		default:
+			return
 		}
 	}
 }
